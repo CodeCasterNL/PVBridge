@@ -1,0 +1,10 @@
+﻿<!-- Shared properties for all projects in this directory -->
+<Project>
+	<PropertyGroup>
+		<!-- Set through /p:Version= on console, or using the appropriate action parameter -->
+		<Version>0.5.0-dev</Version>
+		<Deterministic>true</Deterministic>
+		<LangVersion>latest</LangVersion>
+		<Nullable>enable</Nullable>
+	</PropertyGroup>
+</Project>

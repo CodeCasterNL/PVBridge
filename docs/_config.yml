@@ -1,0 +1,9 @@
+theme: "jekyll-theme-cayman"
+description: "PVBridge - Solar Status Syncer"
+url: "https://codecasternl.github.io/PVBridge/"
+defaults:
+  -
+    scope:
+      path: "" # everything
+    values:
+      layout: "cayman-with-menu"

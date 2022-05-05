@@ -1,0 +1,32 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net6.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+	  <AssemblyName>PVBridge.UI</AssemblyName>
+	  <ApplicationManifest>app.manifest</ApplicationManifest>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Grpc.Net.Client" Version="2.45.0" />
+    <PackageReference Include="GrpcDotNetNamedPipes" Version="1.4.4" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="6.0.0" />
+    <PackageReference Include="System.ServiceProcess.ServiceController" Version="6.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\CodeCaster.GoodWe\CodeCaster.GoodWe.csproj" />
+    <ProjectReference Include="..\CodeCaster.PVBridge.GoodWe\CodeCaster.PVBridge.GoodWe.csproj" />
+    <ProjectReference Include="..\CodeCaster.PVBridge.Grpc\CodeCaster.PVBridge.Grpc.csproj" />
+    <ProjectReference Include="..\CodeCaster.PVBridge.PVOutput\CodeCaster.PVBridge.PVOutput.csproj" />
+    <ProjectReference Include="..\CodeCaster.PVBridge.Utils\CodeCaster.PVBridge.Utils.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Update="ConfigurationControls\GoodWeApiConfigurator.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+  </ItemGroup>
+
+</Project>

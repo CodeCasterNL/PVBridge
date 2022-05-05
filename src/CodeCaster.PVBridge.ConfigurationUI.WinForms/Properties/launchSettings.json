@@ -1,0 +1,9 @@
+{
+  "profiles": {
+    "CodeCaster.PVBridge.ConfigurationUI.WinForms": {
+      "commandName": "Project",
+      "commandLineArgs": ""
+      //"commandLineArgs": "--startup"
+    }
+  }
+}

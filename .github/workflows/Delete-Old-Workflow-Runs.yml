@@ -1,0 +1,36 @@
+name: Delete Old Workflow Runs
+
+on:
+  schedule:
+    # Run daily at 08:00
+    - cron: '0 8 * * *'
+  workflow_dispatch:
+    inputs:
+      retain_days:
+        description: 'Days of workflow runs to keep'
+        required: true
+        default: '180'
+      retain_runs:
+        description: 'Minimum number of workflow runs to keep'
+        required: true
+        default: '10'
+
+jobs:
+  delete_old_workflow_runs:
+    name: Delete Old Workflow Runs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set environment variables
+        env:
+          DEFAULT_RETAIN_DAYS: '180'
+          DEFAULT_RETAIN_RUNS: '10'
+        run: |
+          echo "RETAIN_DAYS=${{ github.event.inputs.retain_days || env.DEFAULT_RETAIN_DAYS }}" >> $GITHUB_ENV
+          echo "RETAIN_RUNS=${{ github.event.inputs.retain_runs || env.DEFAULT_RETAIN_RUNS }}" >> $GITHUB_ENV
+      - name: Delete workflow runs older than ${{ env.RETAIN_DAYS }} days, keeping ${{ env.RETAIN_RUNS }} runs
+        uses: Mattraks/delete-workflow-runs@v1.2.3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ github.repository }}
+          retain_days: ${{ env.RETAIN_DAYS }}
+          keep_minimum_runs: ${{ env.RETAIN_RUNS }}

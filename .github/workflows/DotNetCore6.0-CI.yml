@@ -1,0 +1,30 @@
+name: CI build/test develop
+
+on:
+  push:
+    branches: [ develop ]
+  pull_request:
+    branches: [ develop ]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v1
+      with:
+        dotnet-version: 6.0.x
+    
+    - name: Restore dependencies
+      run: dotnet restore CodeCaster.PVBridge.NoUI.sln
+
+    - name: Build
+      run: dotnet build CodeCaster.PVBridge.NoUI.sln --no-restore
+
+    - name: Test
+      run: dotnet test CodeCaster.PVBridge.NoUI.sln --no-build --verbosity normal

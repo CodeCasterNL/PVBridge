@@ -1,0 +1,26 @@
+{
+  "profiles": {
+    "CodeCaster.PVBridge.Service": {
+      "commandName": "Project",
+
+      "commandLineArgs": "service run",
+      //"commandLineArgs": "sync 2020-12-01 --until 2020-12-31 --input GoodWe --output CSV",
+      //"commandLineArgs": "sync 2020-12-01 -u 2020-12-31",
+      //"commandLineArgs": "service install",
+      //"commandLineArgs": "sync 2022-03-01 -i GoodWe --output PVOutput",
+      //"commandLineArgs": "syncperiod 2022-03-01 2022-03-99",
+      //"commandLineArgs": "syncday 2022-03-31",
+      //"commandLineArgs": "sync --help",
+      //"commandLineArgs": "service --idle",
+      //"commandLineArgs": "--help",
+      //"commandLineArgs": "--syncperiod 2021-05-25 2021-06-25T23:59:59",
+      //"commandLineArgs": "--syncperiod 2022-03-01 2022-03-01T23:59:59",
+      //"commandLineArgs": "--syncbacklog",
+      //"commandLineArgs": "--install \".\\PVBridge.exe\"",
+      "environmentVariables": {
+        "DOTNET_ENVIRONMENT": "Development"
+      },
+      "dotnetRunMessages": "true"
+    }
+  }
+}

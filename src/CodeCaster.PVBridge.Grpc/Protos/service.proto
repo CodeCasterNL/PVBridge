@@ -1,0 +1,16 @@
+﻿syntax = "proto3";
+
+import "google/protobuf/empty.proto";
+import "summary.proto";
+import "snapshot.proto";
+
+option csharp_namespace = "CodeCaster.PVBridge.Grpc";
+
+service PVBridgeService {
+  rpc GetSummary(google.protobuf.Empty) returns (Summary);
+  
+  rpc StartSync(google.protobuf.Empty) returns (google.protobuf.Empty);
+
+  rpc SubscribeSummaries (google.protobuf.Empty) returns (stream Summary) {};
+  rpc SubscribeSnapshots (google.protobuf.Empty) returns (stream Snapshot) {};
+}

@@ -1,0 +1,29 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFramework>net6.0</TargetFramework>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<None Remove="Protos\service.proto" />
+		<None Remove="Protos\snapshot.proto" />
+		<None Remove="Protos\summary.proto" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Google.Protobuf" Version="3.20.1" />
+		<PackageReference Include="Grpc.Core" Version="2.45.0" />
+		<PackageReference Include="Grpc.Tools" Version="2.45.0">
+			<PrivateAssets>all</PrivateAssets>
+			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+		</PackageReference>
+		<PackageReference Include="GrpcDotNetNamedPipes" Version="1.4.4" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<Protobuf Include="Protos\service.proto" ProtoRoot="Protos\" />
+		<Protobuf Include="Protos\summary.proto" GrpcServices="None" ProtoRoot="Protos\" />
+		<Protobuf Include="Protos\snapshot.proto" GrpcServices="None" ProtoRoot="Protos\" />
+	</ItemGroup>
+
+</Project>

@@ -1,0 +1,14 @@
+﻿syntax = "proto3";
+
+import "google/protobuf/timestamp.proto";
+
+option csharp_namespace = "CodeCaster.PVBridge.Grpc";
+
+message Snapshot
+{
+	google.protobuf.Timestamp timestamp = 1;
+	double actual_power = 2;
+	double temperature = 3;
+	double volt_ac = 4;
+	double daily_generation = 5;
+}

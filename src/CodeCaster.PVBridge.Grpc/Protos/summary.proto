@@ -1,0 +1,17 @@
+﻿syntax = "proto3";
+
+import "google/protobuf/timestamp.proto";
+
+option csharp_namespace = "CodeCaster.PVBridge.Grpc";
+
+message SummaryQuery
+{
+	// Could go yyyyMMdd in an int but no
+	google.protobuf.Timestamp day = 1;
+}
+
+message Summary
+{
+	google.protobuf.Timestamp day = 1;
+	double DailyGeneration = 2;
+}

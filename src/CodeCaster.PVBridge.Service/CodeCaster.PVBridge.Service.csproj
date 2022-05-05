@@ -1,0 +1,44 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Worker">
+
+	<PropertyGroup>
+		<TargetFramework>net6.0</TargetFramework>
+		<UserSecretsId>dotnet-CodeCaster.PVBridge.Service-CDF7DE3C-3D88-4288-AC6B-9B6CD5F51162</UserSecretsId>
+		<AssemblyName>PVBridge</AssemblyName>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<Content Remove="log4net.config" />
+		<Content Remove="log4net.Production.config" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <AdditionalFiles Include="app.manifest" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<None Include="log4net.production.config">
+			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
+		<None Include="log4net.config">
+			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="CodeCaster.WindowsServiceExtensions" Version="3.0.1" />
+		<PackageReference Include="GrpcDotNetNamedPipes" Version="1.4.4" />
+		<PackageReference Include="Microsoft.Extensions.Hosting" Version="6.0.1" />
+		<PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" Version="6.0.0" />
+		<PackageReference Include="Microsoft.Extensions.Logging.Log4Net.AspNetCore" Version="6.1.0" />
+		<PackageReference Include="Scrutor" Version="4.1.0" />
+		<PackageReference Include="System.CommandLine" Version="2.0.0-beta3.22114.1" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\CodeCaster.PVBridge.CsvWriter\CodeCaster.PVBridge.CsvWriter.csproj" />
+		<ProjectReference Include="..\CodeCaster.PVBridge.GoodWe\CodeCaster.PVBridge.GoodWe.csproj" />
+		<ProjectReference Include="..\CodeCaster.PVBridge.Grpc\CodeCaster.PVBridge.Grpc.csproj" />
+		<ProjectReference Include="..\CodeCaster.PVBridge.Logic\CodeCaster.PVBridge.Logic.csproj" />
+		<ProjectReference Include="..\CodeCaster.PVBridge.PVOutput\CodeCaster.PVBridge.PVOutput.csproj" />
+	</ItemGroup>
+</Project>

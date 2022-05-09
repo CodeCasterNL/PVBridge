@@ -18,7 +18,6 @@ namespace CodeCaster.PVBridge.Logic
         {
             _logger = logger;
             _messageBroker = messageBroker;
-            _messageBroker.StatusSyncRequested += MessageBroker_StatusSyncRequested;
         }
 
         public Task RunAsync(CancellationToken stoppingToken)
@@ -30,12 +29,12 @@ namespace CodeCaster.PVBridge.Logic
             return Task.Delay(Timeout.Infinite, stoppingToken);
         }
 
-        private async void MessageBroker_StatusSyncRequested(object? sender, EventArgs e)
+        public async void StatusSyncRequested(object? sender, EventArgs e)
         {
             _logger.LogInformation("Syncing fake current status");
 
             Console.WriteLine("Running idle.");
-            
+
             // Fake that the service received our request and sends a response (in reality, this call will return directly, the service will call SnapshotReceivedAsync() after the API call finishes).
             await _messageBroker.SnapshotReceivedAsync(new ApiResponse<Snapshot>(new Snapshot
             {
@@ -45,13 +44,6 @@ namespace CodeCaster.PVBridge.Logic
                 Temperature = 70,
                 VoltAC = 230
             }));
-        }
-
-        public void StatusSyncRequested(object? sender, EventArgs e)
-        {
-            _logger.LogInformation("StatusSyncRequested, but service running idle");
-
-            Console.WriteLine("Status sync requested, but I'm idle.");
         }
 
         public void Suspend() { }

@@ -1,12 +1,13 @@
 ﻿# Developing PVBridge Solar Status Syncer
-Pull requests welcome, see [issues](https://github.com/CodeCasterNL/PVBridge/issues) or [Docs: Roadmap]().
+Pull requests welcome, see [issues](https://github.com/CodeCasterNL/PVBridge/issues) or [Docs: Roadmap](https://codecasternl.github.io/PVBridge/roadmap.html).
 
 ## System Requirements
 * Windows 11
 * Visual Studio 2022
+* [Microsoft Visual Studio Installer Projects 2022](https://marketplace.visualstudio.com/items?itemName=VisualStudioClient.MicrosoftVisualStudio2022InstallerProjects) to build the installer project into an MSI.
 
 ## Debugging classes
-Configure these 
+Configure these:
 * GoodWeFileReader input (for debugging)
 * CSV output (for debugging, broken, might finish later for reporting to documents folder? For taxes and stuff)
 
@@ -43,13 +44,14 @@ A "Snapshot" contains realtime system info, such as power, temperature and cumul
 An "DaySummary" is a the summary of data of a given day, like total power generated.
 
 ## Windows Service
-Just hit F5 to run it as a service (as long as there are no commandLineArgs in Properties/launchSettings.json).
+Just hit F5 to run it as a service (as long as it says `"commandLineArgs": "service run"` in `Properties/launchSettings.json`).
 
 ## Initial configuration
-1. Have a configuration file in "C:\ProgramData\PVBridge\PVBridge.AccountConfig.json" (see PVBridge.AccountConfig.example.json)
+* Run the Configuration UI, or
+* Have a configuration file in "C:\ProgramData\PVBridge\PVBridge.AccountConfig.json".
 
 ## Service Uninstallation
-
+0. Close the Services MSC.
 1. From an elevated command prompt, execute: `sc delete PVBridge`.
 
 ## GoodWe

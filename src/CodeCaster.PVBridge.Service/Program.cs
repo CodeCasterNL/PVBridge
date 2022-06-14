@@ -21,6 +21,11 @@ namespace CodeCaster.PVBridge.Service
     /// </summary>
     public static class Program
     {
+        /// <summary>
+        /// Event Log source name.
+        /// </summary>
+        public static readonly string ApplicationName = "PVBridge Service";
+
         public static async Task Main(string[] args)
         {
             try
@@ -61,7 +66,7 @@ namespace CodeCaster.PVBridge.Service
             };
 
             // TODO: make Argument<DateTime?>, but that doesn't work: https://github.com/dotnet/command-line-api/issues/1669
-            var untilOption = new Option<DateTime?>(new [] { "--until", "-u" }, "The inclusive end date to sync. Format: yyyy-MM-dd.")
+            var untilOption = new Option<DateTime?>(new[] { "--until", "-u" }, "The inclusive end date to sync. Format: yyyy-MM-dd.")
             {
                 IsRequired = false
             };
@@ -204,19 +209,13 @@ namespace CodeCaster.PVBridge.Service
             return Host.CreateDefaultBuilder(args)
                 .ConfigureAppConfiguration((context, config) =>
                 {
-                    config.AddEnvironmentVariables();
+                    // Sets the Event Log source name (through UseWindowsServiceExtensions -> UseWindowsService).
+                    context.HostingEnvironment.ApplicationName = Program.ApplicationName;
 
-                    // enviroment from command line
-                    // e.g.: dotnet run --environment "Staging"
-                    config.AddCommandLine(args);
-
-                    config.AddJsonFile("appsettings.json");
-                    config.AddJsonFile($"appsettings.{context.HostingEnvironment.EnvironmentName}.json", optional: true);
-
+                    // Read "C:\ProgramData\PVBridge\PVBridge.AccountConfig.json". Optional because it doesn't exist on first run.
                     var globalSettingsFilePath = ConfigurationReader.GlobalSettingsFilePath;
                     var globalSettingsFileName = Path.GetFileNameWithoutExtension(ConfigurationReader.GlobalSettingsFilePath);
 
-                    // Read "C:\ProgramData\PVBridge\PVBridge.AccountConfig.json". Optional because it doesn't exist on first run.
                     config.AddJsonFile(ConfigurationReader.GlobalSettingsFilePath, optional: true, reloadOnChange: true);
                 })
                 .ConfigureServices((context, services) =>

@@ -14,6 +14,11 @@ namespace CodeCaster.PVBridge.Service.CommandLine
     {
         private readonly ILogger<WindowsServiceManager> _logger;
 
+        /// <summary>
+        /// Event Log name.
+        /// </summary>
+        private const string applicationLogName = "Application";
+
         // TODO: validate setter
         private string ServiceName { get; } = "PVBridge";
 
@@ -53,6 +58,23 @@ namespace CodeCaster.PVBridge.Service.CommandLine
 
                 throw new InvalidOperationException($"The service path \"{servicePath}\" does not point to a valid executable file.");
             }
+
+            // Create the event log source so we can log warnings and up to the event log.
+            try
+            {
+                if (!EventLog.SourceExists(Program.ApplicationName))
+                {
+                    _logger.LogInformation("Creating {application} log source {source}", applicationLogName, Program.ApplicationName);
+
+                    EventLog.CreateEventSource(Program.ApplicationName, applicationLogName);
+                }
+            }
+            catch (Exception e)
+            {
+                // That's not a fatal error.
+                _logger.LogError(e, "Creating {application} log source {source} failed", applicationLogName, Program.ApplicationName);
+            }
+
 
             using (var serviceController = GetServiceController())
             {
@@ -189,7 +211,7 @@ namespace CodeCaster.PVBridge.Service.CommandLine
 
             // Set failure mode: retry twice after 2 minutes, then after a day. Error count resets in a day.
             scArguments = $"failure {ServiceName} reset= 86400 actions= restart/60000/restart/60000/restart/86400";
-            
+
             return await RunCreateServiceAsync(scArguments);
         }
 

@@ -2,8 +2,8 @@ name: Delete Old Workflow Runs
 
 on:
   schedule:
-    # Run daily at 08:00
-    - cron: '0 8 * * *'
+    # Run at the fifth of the month at 08:00
+    - cron: '0 8 5 * *'
   workflow_dispatch:
     inputs:
       retain_days:

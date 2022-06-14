@@ -28,7 +28,7 @@ namespace CodeCaster.PVBridge.GoodWe
             // Fixup the date and time so the status won't be skipped for being stale.
             if (snapshotData?.inverter.Count >= 1)
             {
-                snapshotData.inverter[0].last_refresh_time = DateTime.Now.ToString("MM\\/dd\\/yyyy HH:mm:ss");
+                snapshotData.inverter[0].last_refresh_time = DateTime.Now;
             }
 
             return new ApiResponse<Snapshot>(Mapper.Map(Logger, snapshotData));

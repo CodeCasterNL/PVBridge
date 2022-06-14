@@ -57,9 +57,7 @@ namespace CodeCaster.GoodWe.Json
         public string Ids { get; set; }
         public int Range { get; set; }
         public int Type { get; set; }
-        [JsonConverter(typeof(SystemTextDateTimeConverter))]
         public DateTime? Start { get; set; }
-        [JsonConverter(typeof(SystemTextDateTimeConverter))]
         public DateTime? End { get; set; }
         public int PageIndex { get; set; }
         public int PageSize { get; set; }

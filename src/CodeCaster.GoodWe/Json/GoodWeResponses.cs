@@ -29,9 +29,8 @@ namespace CodeCaster.GoodWe.Json
     internal class ResponseBase<TData>
     {
         public bool HasError { get; set; }
-
-        // TODO: must be int ("Cannot get the value of a token type 'Number' as a string"), but it can also contain the string "innerexception" for a request parameter error...
-        public int Code { get; set; }
+        [JsonConverter(typeof(CodeConverter))]
+        public string Code { get; set; }
         public string? Msg { get; set; }
         public TData Data { get; set; }
         public Components Components { get; set; }
@@ -55,6 +54,19 @@ namespace CodeCaster.GoodWe.Json
         public string? client { get; set; }
         public string? version { get; set; }
         public string? language { get; set; }
+    }
+
+    public class DateFormatSettingsList
+    {
+        [JsonPropertyName("list")]
+        public List<DateSetting> DateFormats { get; set; } = new();
+    }
+
+    public class DateSetting
+    {
+        public string id { get; set; }
+        public string date_text { get; set; }
+        public bool isselected { get; set; }
     }
 
     public class InverterData
@@ -87,7 +99,7 @@ namespace CodeCaster.GoodWe.Json
         public List<Inverter>? inverters { get; set; }
 
         public string Description => $"{pw_name ?? "(nameless plant)"}, {pw_address}";
-     
+
         public string DisplayString => $"{Description} (status: {status})";
     }
 
@@ -150,11 +162,7 @@ namespace CodeCaster.GoodWe.Json
     {
         public string? plant { get; set; }
         public string? classification { get; set; }
-        public string? date { get; set; }
-
-        // TODO: JsonConverter with custom dates
-        public DateTime GetDate() => DateTime.ParseExact(date, "yyyy'/'MM'/'dd", CultureInfo.InvariantCulture);
-
+        public DateTime date { get; set; }
         public object date_string { get; set; }
         public float feedinPrice { get; set; }
         public float electricalTariff { get; set; }
@@ -350,13 +358,7 @@ namespace CodeCaster.GoodWe.Json
         public float emonth { get; set; }
         public float etotal { get; set; }
         public int status { get; set; }
-
-        // TODO: JsonConverter with custom dates
-        public DateTime? GetTurnonTime() => string.IsNullOrWhiteSpace(turnon_time) 
-            ? null
-            : DateTime.ParseExact(turnon_time, "yyyy'/'MM'/'dd", CultureInfo.InvariantCulture);
-        public string? turnon_time { get; set; }
-        
+        public DateTime? turnon_time { get; set; }
         public string? releation_id { get; set; }
         public string? type { get; set; }
         public float capacity { get; set; }
@@ -387,10 +389,7 @@ namespace CodeCaster.GoodWe.Json
         public string? total_generation { get; set; }
         public string? daily_generation { get; set; }
         public string? battery_charging { get; set; }
-
-        // TODO: JsonConverter with custom dates
-        public DateTime? TryGetLastRefreshDateTime() => DateTime.TryParseExact(last_refresh_time, "MM'/'dd'/'yyyy HH:mm:ss", null, DateTimeStyles.None, out var dateTime) ? dateTime : null;
-        public string? last_refresh_time { get; set; }
+        public DateTime? last_refresh_time { get; set; }
         public string? bms_status { get; set; }
         public string? pw_id { get; set; }
         public string? fault_message { get; set; }

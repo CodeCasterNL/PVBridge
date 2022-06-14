@@ -1,6 +1,8 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -25,8 +27,11 @@ namespace CodeCaster.GoodWe
         private const string LoginEndpoint = "/api/v1/Common/CrossLogin";
         private const string DefaultToken = @"{""version"":""v2.0.4"",""client"":""ios"",""language"":""en""}";
 
+        private const string DateFormatSettingsEndpoint = "/api/v2/Common/GetDateFormatSettingList";
+
         private string _token = DefaultToken;
         private readonly JsonSerializerOptions _responseLogJsonFormat = new() { WriteIndented = true };
+        private JsonSerializerOptions? _serializerOptions;
 
         // TODO: HttpClientFactory injection, and do we need to dispose/recreate on .NET 6 or not (DNS changes)?
         private readonly HttpClient _client;
@@ -68,7 +73,7 @@ namespace CodeCaster.GoodWe
 
             _logger.LogDebug("Getting statistics data with parameters {request}", JsonSerializer.SerializeToDocument(request).RootElement.ToString());
 
-            var response = await TryRequest<ReportData>(() => _client.PostAsJsonAsync(endpoint, request, cancellationToken), cancellationToken);
+            var response = await TryRequest<ReportData>(() => _client.PostAsJsonAsync(endpoint, request, _serializerOptions, cancellationToken), cancellationToken);
 
             await WriteJson("ReportData", response);
 
@@ -166,14 +171,14 @@ namespace CodeCaster.GoodWe
                 try
                 {
                     var response = await call();
-                    var localResponseObject = await response.Content.ReadFromJsonAsync<ResponseBase<TResponse?>?>(cancellationToken: cancellationToken);
+                    var localResponseObject = await response.Content.ReadFromJsonAsync<ResponseBase<TResponse?>?>(_serializerOptions, cancellationToken: cancellationToken);
                     return localResponseObject;
                 }
                 catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
                 {
                     // Cancellation is requested, fail fast
                     _logger.LogDebug("Cancellation requested, cancelling request");
-                    
+
                     throw;
                 }
                 catch (Exception ex)
@@ -193,41 +198,42 @@ namespace CodeCaster.GoodWe
 
             // 100001: "No access, please login."
             // 100002: "The authorization has expired, please login again."
-            if (responseObject?.Code is 100001 or 100002)
+            if (responseObject?.Code is "100001" or "100002")
             {
-                switch (responseObject.Code)
+                if (responseObject.Code == "100001")
                 {
-                    case 100001:
-                        _logger.LogDebug("Unauthorized, logging in");
-                        break;
-                    case 100002:
-                        _logger.LogDebug("Token expired, logging in again");
-                        break;
+                    _logger.LogDebug("Unauthorized, logging in");
+                }
+                else if (responseObject.Code == "100002")
+                {
+                    _logger.LogDebug("Token expired, logging in again");
                 }
 
-                if (!await Login())
+                if (!await LoginAsync())
                 {
                     _logger.LogWarning("Login failed.");
                     return default;
                 }
 
+                await ReadUserDateFormatAsync();
+
                 // Try again after logging in, letting it fail if that fails.
                 responseObject = await GetResponse();
             }
 
-            if (responseObject?.Code != 0)
+            if (responseObject?.Code != "0")
             {
                 var jsonString = responseObject != null ? JsonSerializer.Serialize(responseObject) : "null";
-                
+
                 _logger.LogWarning("Unexpected response: {jsonString}", jsonString);
-                
+
                 return default;
             }
 
             return responseObject.Data;
         }
 
-        private async Task<bool> Login()
+        private async Task<bool> LoginAsync()
         {
             // Take first and last character...
             var logSafeAccount = _accountConfiguration.Account![..1];
@@ -242,17 +248,17 @@ namespace CodeCaster.GoodWe
 
             //"code": 100005
             //"msg": "Email or password error."
-            if (responseObject?.Code == 100005)
+            if (responseObject?.Code == "100005")
             {
                 // TODO: handle login errors
                 _logger.LogError("Login failed: {code}: {msg}", responseObject.Code, responseObject.Msg);
-                
+
                 return false;
             }
-            if (responseObject?.Code != 0)
+            if (responseObject?.Code != "0")
             {
                 _logger.LogError("Unexpected response: {response}", responseObject != null ? JsonSerializer.Serialize(responseObject) : "null");
-                
+
                 return false;
             }
 
@@ -269,14 +275,63 @@ namespace CodeCaster.GoodWe
             //_apiRoot = responseObject.Components.MsgSocketAdr ?? DefaultApiRoot;
             _client.DefaultRequestHeaders.Remove("Token");
             _client.DefaultRequestHeaders.Add("Token", _token);
-            
+
             var logSafeToken = _token.Replace(token.token, "***")
                                      .Replace(token.uid, "***");
 
             _logger.LogDebug("Logged in: {logSafeToken}", logSafeToken);
-            
+
             return true;
         }
+
+        /// <summary>
+        /// API output date format depends on user UI settings.
+        /// </summary>
+        private async Task ReadUserDateFormatAsync()
+        {
+            _logger.LogDebug("Reading date settings");
+
+            string endpoint = _apiRoot + DateFormatSettingsEndpoint;
+
+            var dateSettingsResponse = await _client.PostAsync(endpoint, null);
+            var responseObject = await dateSettingsResponse.Content.ReadFromJsonAsync<ResponseBase<DateFormatSettingsList>>();
+
+            var selected = responseObject.Data.DateFormats.FirstOrDefault(f => f.isselected);
+
+            _logger.LogDebug("Translating date format {selectedDateFormat}", selected.date_text);
+
+            var format = _dateFormats[selected.date_text];
+
+            _serializerOptions = new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true,
+                Converters =
+                {
+                    new DateTimeConverter(format),
+                    new NullableDateTimeConverter(format),
+                }
+            };
+
+            _logger.LogDebug("Dates will be deserialized using format {format}", format);
+        }
+
+        /// <summary>
+        /// Map user settings to .NET formats.
+        /// </summary>
+        private readonly Dictionary<string, string> _dateFormats = new()
+        {
+            { "dateYmd1", "yyyy'/'MM'/'dd"},
+            { "dateYMD", "yyyy'.'MM'.'dd"},
+            { "dateYmd2", "yy'/'M'/'d"},
+            { "dateDmy1", "dd'/'MM'/'yyyy"},
+            { "dateDMY", "dd'.'MM'.'yyyy"},
+            { "dateMdy1", "MM'/'dd'/'yyyy"},
+            { "dateMDY", "MM'.'dd'.'yyyy"},
+            { "dateYDM", "yyyy'/'dd'/'MM"},
+            { "dateDmy2", "d'/'M'/'yy"},
+            { "dateMdy2", "M'/'d'/'yy"},
+            { "dateYdm1", "yy'/'d'/'M"}
+        };
 
         // TODO: IHttpClientFactory injection
         private HttpClient CreateClient()
@@ -285,7 +340,7 @@ namespace CodeCaster.GoodWe
 
             // Make sure you change this to something valid, when you do.
             client.DefaultRequestHeaders.Add("User-Agent", "PVMaster/2.0.4 (iPhone; iOS 11.4.1; Scale/2.00)");
-            
+
             client.DefaultRequestHeaders.Add("Token", _token);
 
             return client;

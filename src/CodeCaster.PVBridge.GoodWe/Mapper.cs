@@ -18,7 +18,7 @@ namespace CodeCaster.PVBridge.GoodWe
                 return null;
             }
 
-            var timeTaken = monitorData.inverter[0].TryGetLastRefreshDateTime();
+            var timeTaken = monitorData.inverter[0].last_refresh_time;
             if (timeTaken == null)
             {
                 logger.LogWarning("Cannot parse monitorData.inverter[0].last_refresh_time value of '{lastRefreshTime}' as DateTime", monitorData.inverter[0].last_refresh_time);
@@ -60,7 +60,7 @@ namespace CodeCaster.PVBridge.GoodWe
             return reportData?.rows.Select(dp => 
                 new DaySummary
                 {
-                    Day = dp.GetDate(), 
+                    Day = dp.date, 
                     DailyGeneration = Math.Round(dp.generation * 1000)
                 }).ToList();
         }

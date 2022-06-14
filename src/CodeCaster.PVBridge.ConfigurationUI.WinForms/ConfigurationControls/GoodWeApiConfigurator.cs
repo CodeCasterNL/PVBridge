@@ -203,7 +203,7 @@ namespace CodeCaster.PVBridge.ConfigurationUI.WinForms.ConfigurationControls
             // Set options properties separately.
             config.PlantId = plant?.id;
             config.InverterSerialNumber = inverter?.sn;
-            config.InstallDate = inverter?.GetTurnonTime();
+            config.InstallDate = inverter?.turnon_time;
 
             return config;
         }

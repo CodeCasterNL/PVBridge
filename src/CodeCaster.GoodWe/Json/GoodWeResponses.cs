@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.Text.Json.Serialization;
 
 // JSON...
@@ -10,22 +9,6 @@ using System.Text.Json.Serialization;
 
 namespace CodeCaster.GoodWe.Json
 {
-    /*
-    {
-      "hasError": false,
-      "code": 100001,
-      "msg": "No access, please login.",
-      "data": null,
-      "components": {
-        "para": null,
-        "langVer": 89,
-        "timeSpan": 0,
-        "api": "http://semsportal.com:82/api/v1/PowerStation/GetMonitorDetailByPowerstationId",
-        "msgSocketAdr": ""
-      }
-    }
-    */
-
     internal class ResponseBase<TData>
     {
         public bool HasError { get; set; }
@@ -67,7 +50,7 @@ namespace CodeCaster.GoodWe.Json
         public string date_text { get; set; }
     }
 
-    public class InverterData
+    public class PlantData
     {
         public int record { get; set; }
         public List<AddressWithInverters>? list { get; set; }
@@ -346,6 +329,14 @@ namespace CodeCaster.GoodWe.Json
 
     public class Inverter
     {
+        [DateTimeFormat("MM/dd/yyyy HH:mm:ss")]
+        public DateTime? last_refresh_time { get; set; }
+
+        [DateTimeFormat("MM/dd/yyyy HH:mm:ss")]
+        public DateTime? turnon_time { get; set; }
+
+        public InverterData d { get; set; }
+
         public string? sn { get; set; }
         public Dict dict { get; set; }
         public bool is_stored { get; set; }
@@ -356,11 +347,9 @@ namespace CodeCaster.GoodWe.Json
         public float emonth { get; set; }
         public float etotal { get; set; }
         public int status { get; set; }
-        public DateTime? turnon_time { get; set; }
         public string? releation_id { get; set; }
         public string? type { get; set; }
         public float capacity { get; set; }
-        public D d { get; set; }
         public bool it_change_flag { get; set; }
         public float tempperature { get; set; }
         public string? check_code { get; set; }
@@ -387,7 +376,6 @@ namespace CodeCaster.GoodWe.Json
         public string? total_generation { get; set; }
         public string? daily_generation { get; set; }
         public string? battery_charging { get; set; }
-        public DateTime? last_refresh_time { get; set; }
         public string? bms_status { get; set; }
         public string? pw_id { get; set; }
         public string? fault_message { get; set; }
@@ -441,7 +429,7 @@ namespace CodeCaster.GoodWe.Json
         public int faultMsgCode { get; set; }
     }
 
-    public class D
+    public class InverterData
     {
         public string? pw_id { get; set; }
         public string? capacity { get; set; }

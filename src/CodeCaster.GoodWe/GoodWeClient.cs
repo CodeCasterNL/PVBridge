@@ -148,18 +148,18 @@ namespace CodeCaster.GoodWe
             return new GoodWeApiResponse<PowerStationMonitorData>(response);
         }
 
-        public async Task<GoodWeApiResponse<InverterData>> GetPlantListAsync(CancellationToken cancellationToken)
+        public async Task<GoodWeApiResponse<PlantData>> GetPlantListAsync(CancellationToken cancellationToken)
         {
             string endpoint = _apiRoot + GetPowerStationInfoEndpoint;
 
             var request = new PowerStationListRequest(pageIndex: 1);
 
-            var response = await TryRequest<InverterData>(() => _client.PostAsJsonAsync(endpoint, request, cancellationToken), cancellationToken);
+            var response = await TryRequest<PlantData>(() => _client.PostAsJsonAsync(endpoint, request, cancellationToken), cancellationToken);
 
             await WriteJson("GetInverterListAsync", response);
 
             // TODO: error handling
-            return new GoodWeApiResponse<InverterData>(response);
+            return new GoodWeApiResponse<PlantData>(response);
         }
 
         [DebuggerStepThrough]

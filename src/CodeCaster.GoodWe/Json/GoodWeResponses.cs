@@ -58,15 +58,13 @@ namespace CodeCaster.GoodWe.Json
 
     public class DateFormatSettingsList
     {
-        [JsonPropertyName("list")]
-        public List<DateSetting> DateFormats { get; set; } = new();
+        public DateSetting? Selected { get; set; }
     }
 
     public class DateSetting
     {
         public string id { get; set; }
         public string date_text { get; set; }
-        public bool isselected { get; set; }
     }
 
     public class InverterData

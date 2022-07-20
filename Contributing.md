@@ -44,7 +44,11 @@ A "Snapshot" contains realtime system info, such as power, temperature and cumul
 An "DaySummary" is a the summary of data of a given day, like total power generated.
 
 ## Windows Service
-Just hit F5 to run it as a service (as long as it says `"commandLineArgs": "service run"` in `Properties/launchSettings.json`).
+Set as Startup Projcet: CodeCaster.PVBridge.Service.
+
+Then hit F5 to run it as a service (as long as it says `"commandLineArgs": "service run"` in `Properties/launchSettings.json`).
+
+Make sure you don't have another version of the service configured with the same accounts while debugging/testing, or you'll be racing another instance.
 
 ## Initial configuration
 * Run the Configuration UI, or
@@ -56,3 +60,19 @@ Just hit F5 to run it as a service (as long as it says `"commandLineArgs": "serv
 
 ## GoodWe
 Peculiarity: when the inverter loses its internet connection, it aggregates its data internally for each five minute block and uploads it when connectivity is restored. This is however not rounded on 5 minutes, but can be :01, :06, :11 and so on.
+
+## Releasing
+1. Build the solution in release.
+1. Rebuild the Installer project.
+  * When rebuilding a new MSI with the same version, uninstall the old one first or it won't install.
+1. Navigate to `src\CodeCaster.PVBridge.Installer\Release`.
+1. Rename `CodeCaster.PVBridge.Installer.msi` to `PVBridge.1.2.3.msi`.
+1. Test upgrade, uninstall, reinstall.
+1. Push tag, create release.
+1. Upload msi to release.
+1. Wait.
+1. Publish release.
+1. TODO: automate.
+
+## Docs build
+Push to develop and hope for the best. [Something something jekyll](https://docs.github.com/en/pages/setting-up-a-github-pages-site-with-jekyll/testing-your-github-pages-site-locally-with-jekyll).

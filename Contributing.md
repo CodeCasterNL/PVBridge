@@ -44,7 +44,9 @@ A "Snapshot" contains realtime system info, such as power, temperature and cumul
 An "DaySummary" is a the summary of data of a given day, like total power generated.
 
 ## Windows Service
-Just hit F5 to run it as a service (as long as it says `"commandLineArgs": "service run"` in `Properties/launchSettings.json`).
+Set as Startup Projcet: CodeCaster.PVBridge.Service.
+
+Then hit F5 to run it as a service (as long as it says `"commandLineArgs": "service run"` in `Properties/launchSettings.json`).
 
 ## Initial configuration
 * Run the Configuration UI, or

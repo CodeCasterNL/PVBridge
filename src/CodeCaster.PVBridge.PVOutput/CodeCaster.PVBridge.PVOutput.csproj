@@ -6,7 +6,7 @@
 
 	<ItemGroup>
 		<PackageReference Include="Microsoft.Extensions.Options" Version="6.0.0" />
-		<PackageReference Include="PVOutput.Net" Version="0.10.0" />
+		<PackageReference Include="PVOutput.Net" Version="0.11.0" />
 	</ItemGroup>
 
 	<ItemGroup>

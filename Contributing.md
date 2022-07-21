@@ -58,3 +58,14 @@ Then hit F5 to run it as a service (as long as it says `"commandLineArgs": "serv
 
 ## GoodWe
 Peculiarity: when the inverter loses its internet connection, it aggregates its data internally for each five minute block and uploads it when connectivity is restored. This is however not rounded on 5 minutes, but can be :01, :06, :11 and so on.
+
+## Releasing
+1. Build the solution in release.
+1. Rebuild the Installer project.
+  * When rebuilding a new MSI with the same version, uninstall the old one first or it won't install.
+1. Navigate to `src\CodeCaster.PVBridge.Installer\Release`.
+1. Rename `CodeCaster.PVBridge.Installer.msi` to `PVBridge.1.2.3.msi`.
+1. Test upgrade, uninstall, reinstall.
+1. Push tag, wait for release.
+1. Upload msi to release.
+1. TODO: automate.

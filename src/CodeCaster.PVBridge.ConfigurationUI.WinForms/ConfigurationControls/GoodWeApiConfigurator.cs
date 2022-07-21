@@ -35,7 +35,9 @@ namespace CodeCaster.PVBridge.ConfigurationUI.WinForms.ConfigurationControls
         }
 
         internal EventHandler<StatusChangedEventArgs> StatusChanged = delegate { };
-        
+
+        private GoodWeClient? _client;
+
         private CaseInsensitiveDictionary<string?>? _optionsBackup;
 
         private void SetStatus(GoodWeStatus status)
@@ -85,9 +87,9 @@ namespace CodeCaster.PVBridge.ConfigurationUI.WinForms.ConfigurationControls
 
             var client = new GoodWeClient(_logger, null, accountConfig);
 
-            var stats = await client.GetPlantListAsync(new CancellationToken());
+            var plantList = await client.GetPlantListAsync(new CancellationToken());
 
-            if (stats.Data == null)
+            if (plantList.Data == null)
             {
                 SetStatus(GoodWeStatus.Uninitialized);
                 statusLabel.Text = "Could not obtain inverter list, verify your email and password on semsportal.com.";
@@ -97,7 +99,7 @@ namespace CodeCaster.PVBridge.ConfigurationUI.WinForms.ConfigurationControls
 
             SetStatus(GoodWeStatus.Authorized);
 
-            var firstPlant = stats.Data.list?.FirstOrDefault();
+            var firstPlant = plantList.Data.list?.FirstOrDefault();
 
             if (firstPlant?.inverters?.Any() != true)
             {
@@ -106,25 +108,32 @@ namespace CodeCaster.PVBridge.ConfigurationUI.WinForms.ConfigurationControls
                 return;
             }
 
-            var plantCount = stats.Data.list?.Count ?? 0;
-            var inverterCount = stats.Data.list?.Sum(p => p.inverters?.Count);
-
-            statusLabel.Text = $"Found {plantCount} plant{(plantCount == 1 ? "" : "s")} with {inverterCount} inverter{(inverterCount == 1 ? "" : "s")}";
-
             plantComboBox.Enabled = true;
             plantComboBox.ValueMember = nameof(AddressWithInverters.id);
             plantComboBox.DisplayMember = nameof(AddressWithInverters.DisplayString);
-            plantComboBox.DataSource = stats.Data.list;
+
+            _client = client;
+            plantComboBox.DataSource = plantList.Data.list;
 
             plantComboBox.SelectedIndex = 0;
+
+            var plantCount = plantList.Data.list?.Count ?? 0;
+            var inverterCount = plantList.Data.list?.Sum(p => p.inverters?.Count) ?? 0;
+
+            if (inverterCount > 0)
+            {
+                statusLabel.Text = $"Found {plantCount.SIfPlural("plant")} with {inverterCount.SIfPlural("inverter")}";
+            }
         }
 
-        private void PlantComboBox_SelectedValueChanged(object sender, EventArgs e)
+        private async void PlantComboBox_SelectedValueChanged(object sender, EventArgs e)
         {
             ResetComboBox(inverterComboBox);
 
             if (plantComboBox.SelectedItem == null)
             {
+                _client = null;
+
                 SetStatus(GoodWeStatus.Uninitialized);
 
                 return;
@@ -139,7 +148,26 @@ namespace CodeCaster.PVBridge.ConfigurationUI.WinForms.ConfigurationControls
                 return;
             }
 
-            statusLabel.Text = "";
+            if (plant.inverters.Any(p => p.turnon_time == null))
+            {
+                var deets = await _client!.GetMonitorDetailRaw(plant.id!, new CancellationToken());
+                if (deets.Data?.inverter?.Any() != true)
+                {
+                    statusLabel.Text = "No inverters details found for selected plant.";
+
+                    return;
+                }
+
+                foreach (var inverter in plant.inverters)
+                {
+                    var inverterDetails = deets.Data.inverter.FirstOrDefault(i => i.sn == inverter.sn);
+
+                    if (inverterDetails?.turnon_time != null)
+                    {
+                        inverter.turnon_time = inverterDetails.turnon_time;
+                    }
+                }
+            }
 
             inverterComboBox.Enabled = true;
             inverterComboBox.ValueMember = nameof(Inverter.sn);
@@ -154,12 +182,16 @@ namespace CodeCaster.PVBridge.ConfigurationUI.WinForms.ConfigurationControls
                 ? GoodWeStatus.InverterSelected
                 : GoodWeStatus.Uninitialized);
 
+
+
         private void Credentials_TextChanged(object sender, EventArgs e)
         {
             ResetComboBox(plantComboBox);
             ResetComboBox(inverterComboBox);
 
             readDeviceInfoButton.Enabled = emailTextBox.TextLength > 0 && passwordTextBox.TextLength > 0;
+
+            _client = null;
         }
 
         private void SemsPortalLinkLabel_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e)
@@ -180,7 +212,7 @@ namespace CodeCaster.PVBridge.ConfigurationUI.WinForms.ConfigurationControls
             passwordTextBox.Text = config.Key;
 
             _optionsBackup = new CaseInsensitiveDictionary<string?>(config.Options);
-            
+
             await ReadDeviceInfoAsync();
         }
 
@@ -193,7 +225,7 @@ namespace CodeCaster.PVBridge.ConfigurationUI.WinForms.ConfigurationControls
             {
                 // Set Options before everything else.
                 Options = _optionsBackup ?? new(),
-                
+
                 Account = emailTextBox.Text,
                 Description = plant?.Description,
                 Key = passwordTextBox.Text,
@@ -213,7 +245,7 @@ namespace CodeCaster.PVBridge.ConfigurationUI.WinForms.ConfigurationControls
             comboBox.SelectedItem = null;
             comboBox.DataSource = null;
             comboBox.Enabled = false;
-        
+
             SetStatus(GoodWeStatus.Uninitialized);
         }
     }

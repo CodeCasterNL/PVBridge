@@ -9,21 +9,29 @@ namespace CodeCaster.PVBridge
 {
     public interface IOutputWriter : IDataProvider
     {
-        bool CanWriteDetails(DateTime day);
+        /// <summary>
+        /// Returns whether snapshots for the given day can be written to the configured output.
+        /// </summary>
+        bool CanWriteDetails(DataProviderConfiguration outputConfig, DateTime day);
+
+        /// <summary>
+        /// Returns whether a summary for the given day can be written to the configured output.
+        /// </summary>
+        bool CanWriteSummary(DataProviderConfiguration outputConfig, DateTime day);
 
         /// <summary>
         /// Write a single snapshot to the output.
         /// </summary>
-        Task<ApiResponse> WriteStatusAsync(DataProviderConfiguration output, Snapshot snapshot, CancellationToken cancellationToken);
+        Task<ApiResponse> WriteStatusAsync(DataProviderConfiguration outputConfig, Snapshot snapshot, CancellationToken cancellationToken);
 
         /// <summary>
         /// Write a batch of snapshots (i.e. details for each n seconds/minutes) to the output.
         /// </summary>
-        Task<ApiResponse> WriteStatusesAsync(DataProviderConfiguration output, IReadOnlyCollection<Snapshot> snapshots, CancellationToken cancellationToken);
+        Task<ApiResponse> WriteStatusesAsync(DataProviderConfiguration outputConfig, IReadOnlyCollection<Snapshot> snapshots, CancellationToken cancellationToken);
 
         /// <summary>
         /// Write a batch of day summaries to the output.
         /// </summary>
-        Task<ApiResponse> WriteDaySummariesAsync(DataProviderConfiguration output, IReadOnlyCollection<DaySummary> summaries, CancellationToken cancellationToken);
+        Task<ApiResponse> WriteDaySummariesAsync(DataProviderConfiguration outputConfig, IReadOnlyCollection<DaySummary> summaries, CancellationToken cancellationToken);
     }
 }

@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
@@ -13,13 +14,13 @@ namespace CodeCaster.PVBridge.CsvWriter
     {
         public string Type => "Csv";
 
-        public Task<ApiResponse> WriteStatusAsync(DataProviderConfiguration output, Snapshot snapshot, CancellationToken _)
+        public Task<ApiResponse> WriteStatusAsync(DataProviderConfiguration outputConfig, Snapshot snapshot, CancellationToken _)
         {
             // TODO
             return Task.FromResult(ApiResponse.Succeeded);
         }
 
-        public async Task<ApiResponse> WriteStatusesAsync(DataProviderConfiguration output, IReadOnlyCollection<Snapshot> snapshots, CancellationToken cancellationToken)
+        public async Task<ApiResponse> WriteStatusesAsync(DataProviderConfiguration outputConfig, IReadOnlyCollection<Snapshot> snapshots, CancellationToken cancellationToken)
         {
             // TODO: get path from options
             var day = snapshots.First().TimeTaken;
@@ -34,19 +35,19 @@ namespace CodeCaster.PVBridge.CsvWriter
             return ApiResponse.Succeeded;
         }
 
-        public async Task<ApiResponse> WriteDaySummariesAsync(DataProviderConfiguration output, IReadOnlyCollection<DaySummary> summaries, CancellationToken cancellationToken)
+        public async Task<ApiResponse> WriteDaySummariesAsync(DataProviderConfiguration outputConfig, IReadOnlyCollection<DaySummary> summaries, CancellationToken cancellationToken)
         {
             var groupedByMonth = summaries.GroupBy(d => (d.Day.Year, d.Day.Month));
 
             foreach (var monthData in groupedByMonth)
             {
-                await WriteMonthAsync(output, monthData, cancellationToken);
+                await WriteMonthAsync(outputConfig, monthData, cancellationToken);
             }
-        
+
             return ApiResponse.Succeeded;
         }
 
-        private static async Task WriteMonthAsync(DataProviderConfiguration output, IGrouping<(int Year, int Month), DaySummary> monthData, CancellationToken cancellationToken)
+        private static async Task WriteMonthAsync(DataProviderConfiguration outputConfig, IGrouping<(int Year, int Month), DaySummary> monthData, CancellationToken cancellationToken)
         {
             // TODO: get path from options
             var filename = $"C:\\Temp\\{monthData.Key.Year}-{monthData.Key.Month} Report.csv";
@@ -63,10 +64,14 @@ namespace CodeCaster.PVBridge.CsvWriter
             return true;
         }
 
-        public Task<ApiResponse<IReadOnlyCollection<DaySummary>>> GetSummariesAsync(DataProviderConfiguration configuration, System.DateTime since, System.DateTime? until = null, CancellationToken cancellationToken = default)
+        public Task<ApiResponse<IReadOnlyCollection<DaySummary>>> GetSummariesAsync(DataProviderConfiguration outputConfig, System.DateTime since, System.DateTime? until = null, CancellationToken cancellationToken = default)
         {
             // TODO: read the files that we have, get last record for each day, cache
             return Task.FromResult(new ApiResponse<IReadOnlyCollection<DaySummary>>(new List<DaySummary>()));
         }
+
+        // unless disk full but let it throw
+        public bool CanWriteDetails(DataProviderConfiguration outputConfig, DateTime day) => true;
+        public bool CanWriteSummary(DataProviderConfiguration outputConfig, DateTime day) => true;
     }
 }

@@ -44,9 +44,9 @@ namespace CodeCaster.PVBridge.PVOutput
             _batchOutputBuilder = new OutputPostBuilder();
         }
 
-        public async Task<PVOutputSystem?> GetSystemAsync(PVOutputConfiguration configuration, CancellationToken cancellationToken)
+        public async Task<PVOutputSystem?> GetSystemAsync(PVOutputConfiguration outputConfig, CancellationToken cancellationToken)
         {
-            var apiClient = GetApiClient(configuration);
+            var apiClient = GetApiClient(outputConfig);
 
             var systemResponse = await TryHandleAndLogRequest(() => apiClient.ApiClient.System.GetOwnSystemAsync(cancellationToken), $"PVOutput-GetOwnSystem({apiClient.ApiClient.OwnedSystemId}-TODO-logparams)");
 
@@ -55,9 +55,9 @@ namespace CodeCaster.PVBridge.PVOutput
             return system == null ? null : new PVOutputSystem(apiClient.ApiClient.OwnedSystemId, system);
         }
 
-        public async Task<ApiResponse> WriteStatusAsync(DataProviderConfiguration configuration, Snapshot snapshot, CancellationToken cancellationToken)
+        public async Task<ApiResponse> WriteStatusAsync(DataProviderConfiguration outputConfig, Snapshot snapshot, CancellationToken cancellationToken)
         {
-            var apiClient = GetApiClient(configuration);
+            var apiClient = GetApiClient(outputConfig);
 
             Logger.LogTrace("Mapping snapshot: {snapshot}", snapshot);
             var status = Mapper.Map(_statusBuilder, snapshot);
@@ -67,9 +67,9 @@ namespace CodeCaster.PVBridge.PVOutput
             return addStatusResponse;
         }
 
-        public async Task<ApiResponse> WriteDaySummariesAsync(DataProviderConfiguration configuration, IReadOnlyCollection<DaySummary> summaries, CancellationToken cancellationToken)
+        public async Task<ApiResponse> WriteDaySummariesAsync(DataProviderConfiguration outputConfig, IReadOnlyCollection<DaySummary> summaries, CancellationToken cancellationToken)
         {
-            var apiClient = GetApiClient(configuration);
+            var apiClient = GetApiClient(outputConfig);
 
             // We can only send output (summary) data up till yesterday.
             var items = summaries.Where(s => s.Day < DateTime.Now)
@@ -100,9 +100,9 @@ namespace CodeCaster.PVBridge.PVOutput
             return addOutputResponse;
         }
 
-        public async Task<ApiResponse> WriteStatusesAsync(DataProviderConfiguration configuration, IReadOnlyCollection<Snapshot> snapshots, CancellationToken cancellationToken)
+        public async Task<ApiResponse> WriteStatusesAsync(DataProviderConfiguration outputConfig, IReadOnlyCollection<Snapshot> snapshots, CancellationToken cancellationToken)
         {
-            var apiClient = GetApiClient(configuration);
+            var apiClient = GetApiClient(outputConfig);
 
             var statuses = snapshots.Select(s =>
                 {
@@ -131,7 +131,7 @@ namespace CodeCaster.PVBridge.PVOutput
             return batchResponse;
         }
 
-        protected override async Task<ApiResponse<IReadOnlyCollection<DaySummary>>> GetDaySummariesAsync(DataProviderConfiguration configuration, DateTime since, DateTime? until, CancellationToken cancellationToken)
+        protected override async Task<ApiResponse<IReadOnlyCollection<DaySummary>>> GetDaySummariesAsync(DataProviderConfiguration outputConfig, DateTime since, DateTime? until, CancellationToken cancellationToken)
         {
             var summaries = new List<DaySummary>();
 
@@ -147,7 +147,7 @@ namespace CodeCaster.PVBridge.PVOutput
                 return summaries;
             }
 
-            var apiClient = GetApiClient(configuration);
+            var apiClient = GetApiClient(outputConfig);
 
             Logger.LogDebug("Getting PVOutput summaries from {since} until {until} for system {systemId}", since, until, apiClient.ApiClient.OwnedSystemId);
 
@@ -174,7 +174,26 @@ namespace CodeCaster.PVBridge.PVOutput
             return summaries;
         }
 
-        public bool CanWriteDetails(DateTime day) => day <= DateTime.Now && day >= DateTime.Today.AddDays(-13);
+        // How to save account premium status on configuration? From UI only? And as boolean? Or the end date?
+        // Or from service, query through API (can we?) once per day when unknown or when close to expiration, then update config accordingly?
+
+        public bool CanWriteDetails(DataProviderConfiguration outputConfig, DateTime day)
+        {
+            // Trigger configuration validation.
+            _ = GetApiClient(outputConfig);
+
+            // TODO: premium accounts can sync further back.
+            return day <= DateTime.Now && day >= DateTime.Today.AddDays(-13);
+        }
+
+        public bool CanWriteSummary(DataProviderConfiguration outputConfig, DateTime day)
+        {
+            // Trigger configuration validation.
+            _ = GetApiClient(outputConfig);
+
+            // TODO: premium accounts can sync further back.
+            return day <= DateTime.Now && day >= DateTime.Today.AddDays(-90);
+        }
 
         [DebuggerStepThrough]
         private async Task<ApiResponse<TResponse>> TryHandleAndLogRequest<TResponse>(Func<Task<TResponse>> request, string jsonName)
@@ -257,9 +276,9 @@ namespace CodeCaster.PVBridge.PVOutput
             }
         }
 
-        private PVOutputWrapper GetApiClient(DataProviderConfiguration configuration)
+        private PVOutputWrapper GetApiClient(DataProviderConfiguration outputConfig)
         {
-            var pvOutputConfiguration = configuration as PVOutputConfiguration ?? new PVOutputConfiguration(configuration);
+            var pvOutputConfiguration = outputConfig as PVOutputConfiguration ?? new PVOutputConfiguration(outputConfig);
             
             if (string.IsNullOrWhiteSpace(pvOutputConfiguration.SystemId))
                 throw new ArgumentException(nameof(pvOutputConfiguration.SystemId) + " not configured.");

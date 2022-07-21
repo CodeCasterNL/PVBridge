@@ -3,14 +3,14 @@
     "CodeCaster.PVBridge.Service": {
       "commandName": "Project",
 
-      "commandLineArgs": "service run",
+      //"commandLineArgs": "service run",
       //"commandLineArgs": "service install",
       //"commandLineArgs": "sync",
+      "commandLineArgs": "sync 2022-07-07",
       //"commandLineArgs": "sync 2020-12-01 --until 2020-12-31 --input GoodWe --output CSV",
       //"commandLineArgs": "sync 2020-12-01 -u 2020-12-31",
       //"commandLineArgs": "sync 2022-03-01 -i GoodWe --output PVOutput",
       //"commandLineArgs": "syncperiod 2022-03-01 2022-03-99",
-      //"commandLineArgs": "syncday 2022-03-31",
       //"commandLineArgs": "sync --help",
       //"commandLineArgs": "service --idle",
       //"commandLineArgs": "--help",

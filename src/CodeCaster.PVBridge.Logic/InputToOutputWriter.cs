@@ -104,7 +104,7 @@ namespace CodeCaster.PVBridge.Logic
 
             var writer = GetProvider<IOutputWriter>(outputConfig.Type);
 
-            if (!writer.CanWriteDetails(day))
+            if (!writer.CanWriteDetails(outputConfig, day))
             {
                 _logger.LogWarning("Provider {output} can't write on {loggableDay}", outputConfig.NameOrType, loggableDay);
 
@@ -164,6 +164,16 @@ namespace CodeCaster.PVBridge.Logic
             return new ApiResponse<IReadOnlyCollection<Snapshot>>(reducedSnapshots);
         }
 
+        public bool CanWriteDetails(DataProviderConfiguration outputConfig, DateTime day)
+        {
+            return GetProvider<IOutputWriter>(outputConfig.NameOrType).CanWriteDetails(outputConfig, day);
+        }
+
+        public bool CanWriteSummary(DataProviderConfiguration outputConfig, DateTime day)
+        {
+            return GetProvider<IOutputWriter>(outputConfig.NameOrType).CanWriteSummary(outputConfig, day);
+        }
+
         private async Task<ApiResponse<IReadOnlyCollection<Snapshot>>> GetPeriodSnapshotsAsync(DataProviderConfiguration inputConfig, DateTime start, DateTime end, IInputProvider reader, string loggableDay, CancellationToken cancellationToken)
         {
             _logger.LogDebug("Getting snapshots from {input} from {start} till {end}", inputConfig.NameOrType, start, end);
@@ -218,6 +228,10 @@ namespace CodeCaster.PVBridge.Logic
 
             return ApiResponse.Succeeded;
         }
+
+        /// <summary>
+        /// Gets a cached provider for a given input or output type (e.g. "GoodWe", "PVOutput").
+        /// </summary>
         private T GetProvider<T>(string type)
             where T : IDataProvider
         {

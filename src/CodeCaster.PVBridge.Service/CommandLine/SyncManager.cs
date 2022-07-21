@@ -3,6 +3,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using CodeCaster.PVBridge.Configuration;
+using CodeCaster.PVBridge.Utils;
 
 namespace CodeCaster.PVBridge.Service.CommandLine
 {
@@ -22,7 +23,9 @@ namespace CodeCaster.PVBridge.Service.CommandLine
                 return;
             }
 
-            until ??= new[] { DateTime.Now, since.Value.Date.AddDays(1) }.Min();
+            until ??= new[] { DateTime.Now.Date, since.Value.Date.AddDays(1) }.Min();
+
+            // TODO: get an InputToOutputLoop or we're gonna rebuild the whole thing here.
 
             var inputSummaries = await ioWriter.GetSummariesAsync(inputConfig, since.Value, until.Value, cancellationToken);
             if (inputSummaries.Status != ApiResponseStatus.Succeeded || inputSummaries.Response == null)
@@ -32,7 +35,7 @@ namespace CodeCaster.PVBridge.Service.CommandLine
                 return;
             }
 
-            var outputSummaries = await ioWriter.GetSummariesAsync(inputConfig, since.Value, until.Value, cancellationToken);
+            var outputSummaries = await ioWriter.GetSummariesAsync(outputConfig, since.Value, until.Value.Date, cancellationToken);
             if (outputSummaries.Status != ApiResponseStatus.Succeeded || outputSummaries.Response == null)
             {
                 Console.WriteLine("Error getting output summaries: " + outputSummaries.Status);
@@ -49,34 +52,56 @@ namespace CodeCaster.PVBridge.Service.CommandLine
                     continue;
                 }
 
-                var response = await ioWriter.SyncPeriodDetailsAsync(inputConfig, outputConfig, inputSummary.Day, cancellationToken);
-
-                if (response.Status != ApiResponseStatus.Succeeded)
+                if (!ioWriter.CanWriteDetails(outputConfig, inputSummary.Day))
                 {
-                    Console.WriteLine("Error writing day details: " + response.Status);
+                    Console.WriteLine($"Can't write snapshots for {inputSummary.Day.LoggableDayName()} to {outputConfig.NameOrType}");
+                }
+                else
+                {
+                    var response = await ioWriter.SyncPeriodDetailsAsync(inputConfig, outputConfig, inputSummary.Day, cancellationToken);
 
-                    if (response.RetryAfter.HasValue)
+                    if (response.Status != ApiResponseStatus.Succeeded)
                     {
-                        Console.WriteLine("Retry after: " + response.RetryAfter.Value.ToString("O"));
+                        Console.WriteLine("Error writing day details for " + inputSummary.Day.LoggableDayName() + ": " + response.Status);
+
+                        if (response.RetryAfter.HasValue)
+                        {
+                            Console.WriteLine();
+                            Console.WriteLine("Retry after: " + response.RetryAfter.Value.ToString("O"));
+                        }
+
+                        return;
+                    }
+                }
+
+                if (ioWriter.CanWriteSummary(outputConfig, inputSummary.Day))
+                {
+                    Console.WriteLine($"Can't write summary for {inputSummary.Day.LoggableDayName()} to {outputConfig.NameOrType}");
+                }
+                else
+                {
+                    // Same problem in InputToOutputLoop.
+                    var outputSummary = outputSummaries.Response.FirstOrDefault(d => d.Day == inputSummary.Day);
+
+                    var summaryResponse = await ioWriter.WriteDaySummaryAsync(outputConfig, inputSummary, outputSummary, cancellationToken);
+
+                    if (summaryResponse.Status != ApiResponseStatus.Succeeded)
+                    {
+                        Console.WriteLine("Failed to write summary for " + inputSummary.Day.LoggableDayName() + ": " + summaryResponse.Status);
+
+                        return;
                     }
 
-                    return;
+                    if (inputSummary == inputSummaries.Response.Last())
+                    {
+                        return;
+                    }
                 }
 
-                var outputSummary = outputSummaries.Response.FirstOrDefault(d => d.Day == inputSummary.Day);
-
-                var summaryResponse = await ioWriter.WriteDaySummaryAsync(outputConfig, inputSummary, outputSummary, cancellationToken);
-
-                if (summaryResponse.Status != ApiResponseStatus.Succeeded)
-                {
-                    Console.WriteLine("Failed to write summary: " + summaryResponse.Status);
-
-                    return;
-                }
-
-                Console.WriteLine("sleeping: " + sleepTimeSpan);
-
+                Console.Write("Sleeping: " + sleepTimeSpan + "... ");
                 await Task.Delay(sleepTimeSpan, cancellationToken);
+                Console.WriteLine();
+                Console.WriteLine();
             }
         }
 

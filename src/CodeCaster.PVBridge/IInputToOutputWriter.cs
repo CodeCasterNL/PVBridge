@@ -31,10 +31,20 @@ namespace CodeCaster.PVBridge
         /// Sync a range of statuses, returning those who were sent and successfully received.
         /// </summary>
         Task<ApiResponse<IReadOnlyCollection<Snapshot>>> SyncPeriodDetailsAsync(DataProviderConfiguration inputConfig, DataProviderConfiguration outputConfig, DateTime day, CancellationToken cancellationToken);
-        
+
         /// <summary>
         /// Send a day summary to the output.
         /// </summary>
         Task<ApiResponse> WriteDaySummaryAsync(DataProviderConfiguration outputConfig, DaySummary inputSummary, DaySummary? outputSummary, CancellationToken cancellationToken);
+
+        /// <summary>
+        /// Returns whether snapshots for the given day can be written to the configured output.
+        /// </summary>
+        bool CanWriteDetails(DataProviderConfiguration outputConfig, DateTime day);
+
+        /// <summary>
+        /// Returns whether a summary for the given day can be written to the configured output.
+        /// </summary>
+        bool CanWriteSummary(DataProviderConfiguration outputConfig, DateTime day);
     }
 }

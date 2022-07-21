@@ -150,13 +150,11 @@ namespace CodeCaster.PVBridge.Logic
                 // Input summaries aren't available until after 03:00 ~ 04:00 (local) the next day.
                 var inputSummaries = await _ioWriter.GetSummariesAsync(_inputProvider, monthStart, monthEnd, _stoppingToken);
 
-                // No data, increment delay.
                 _taskStatus.HandleApiResponse(inputSummaries);
 
-                // But consider an empty status succesful here.
+                // Consider an empty response with 200 OK succesful here, so we continue.
                 if (inputSummaries.Status is not ApiResponseStatus.Succeeded)
                 {
-                    // TODO: continue on error, maybe corrupt/empty/... day? Or was that fixed now?
                     return;
                 }
 
@@ -197,14 +195,15 @@ namespace CodeCaster.PVBridge.Logic
                             inputSummary = inputSummaries.Response?.FirstOrDefault(s => s.Day == day.Date);
                             outputSummary = outputSummaries.Response?.FirstOrDefault(s => s.Day == day.Date);
 
-                            if (inputSummary == null || inputSummary.DailyGeneration.GetValueOrDefault() == 0)
+                            // API data seems to have gaps in its summaries sometimes, but they do catch up. Usually.
+                            if ((inputSummary?.DailyGeneration).GetValueOrDefault() == 0)
                             {
                                 if (d == 0 && m == 0)
                                 {
-                                    // We haven't had data before, GoodWe sometimes reports an empty response as 200 OK. Retry after a while.
-                                    _logger.LogWarning("No input summary data for {input} on {day}, skipping", _inputProvider.NameOrType, day.LoggableDayName());
-
-                                    // TODO: increment wait time
+                                    // We haven't received data before for this backlog sync.
+                                    _logger.LogWarning("No input summary data for {input} on {day}, probably API connectivity errors, backing off", _inputProvider.NameOrType, day.LoggableDayName());
+                                    
+                                    _taskStatus.HandleApiResponse(ApiResponse.RateLimited(DateTime.Now.AddMinutes(15)));
 
                                     return;
                                 }

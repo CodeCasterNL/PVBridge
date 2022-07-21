@@ -74,7 +74,7 @@ namespace CodeCaster.PVBridge
         private (List<DaySummary> cachedSummaries, DateTime? missingStart, DateTime? missingEnd) GetMissingDays(DataProviderConfiguration configuration, DateTime since, DateTime? until, ConcurrentDictionary<DateOnly, DaySummary> providerSummaryCache)
         {
             var fromDay = since.Date;
-            var days = (int)Math.Ceiling(((until ?? DateTime.Now) - fromDay).TotalDays);
+            var days = (int)((until ?? DateTime.Now) - fromDay).TotalDays + 1;
 
             if (days > 31)
             {
@@ -108,11 +108,6 @@ namespace CodeCaster.PVBridge
                 var missingStart = missingDays.Min(d => d.Date);
                 var missingEnd = missingDays.Max(d => d.Date);
                 
-                if (missingEnd.Date == missingStart)
-                {
-                    missingEnd = missingStart.AddDays(1).AddMinutes(-1);
-                }
-
                 return (summaries, missingStart, missingEnd);
             }
             

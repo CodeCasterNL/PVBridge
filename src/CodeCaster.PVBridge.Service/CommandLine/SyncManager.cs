@@ -23,9 +23,18 @@ namespace CodeCaster.PVBridge.Service.CommandLine
                 return;
             }
 
-            until ??= new[] { DateTime.Now.Date, since.Value.Date.AddDays(1) }.Min();
+            // TODO: get an InputToOutputLoop (refactor backlog sync) or we're gonna rebuild the whole thing here.
 
-            // TODO: get an InputToOutputLoop or we're gonna rebuild the whole thing here.
+            var now = DateTime.Now;
+
+            until ??= new[] { now, since.Value }.Min();
+
+            if (since > until || until > now)
+            {
+                Console.WriteLine("The since date should be before --until, and the latter before now. Type --help for more information.");
+
+                return;
+            }
 
             var inputSummaries = await ioWriter.GetSummariesAsync(inputConfig, since.Value, until.Value, cancellationToken);
             if (inputSummaries.Status != ApiResponseStatus.Succeeded || inputSummaries.Response == null)
@@ -35,7 +44,7 @@ namespace CodeCaster.PVBridge.Service.CommandLine
                 return;
             }
 
-            var outputSummaries = await ioWriter.GetSummariesAsync(outputConfig, since.Value, until.Value.Date, cancellationToken);
+            var outputSummaries = await ioWriter.GetSummariesAsync(outputConfig, since.Value.Date, until.Value.Date, cancellationToken);
             if (outputSummaries.Status != ApiResponseStatus.Succeeded || outputSummaries.Response == null)
             {
                 Console.WriteLine("Error getting output summaries: " + outputSummaries.Status);
@@ -47,11 +56,6 @@ namespace CodeCaster.PVBridge.Service.CommandLine
 
             foreach (var inputSummary in inputSummaries.Response)
             {
-                if (inputSummary.Day < since.Value || inputSummary.Day > until.Value)
-                {
-                    continue;
-                }
-
                 if (!ioWriter.CanWriteDetails(outputConfig, inputSummary.Day))
                 {
                     Console.WriteLine($"Can't write snapshots for {inputSummary.Day.LoggableDayName()} to {outputConfig.NameOrType}");
@@ -74,7 +78,7 @@ namespace CodeCaster.PVBridge.Service.CommandLine
                     }
                 }
 
-                if (ioWriter.CanWriteSummary(outputConfig, inputSummary.Day))
+                if (!ioWriter.CanWriteSummary(outputConfig, inputSummary.Day))
                 {
                     Console.WriteLine($"Can't write summary for {inputSummary.Day.LoggableDayName()} to {outputConfig.NameOrType}");
                 }
@@ -91,11 +95,11 @@ namespace CodeCaster.PVBridge.Service.CommandLine
 
                         return;
                     }
+                }
 
-                    if (inputSummary == inputSummaries.Response.Last())
-                    {
-                        return;
-                    }
+                if (inputSummary == inputSummaries.Response.Last())
+                {
+                    return;
                 }
 
                 Console.Write("Sleeping: " + sleepTimeSpan + "... ");

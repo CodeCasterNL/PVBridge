@@ -4,6 +4,7 @@ using PVOutput.Net.Objects;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -28,7 +29,7 @@ namespace CodeCaster.PVBridge.PVOutput
         private readonly OutputPostBuilder _batchOutputBuilder;
 
         private readonly JsonSerializerOptions _responseLogJsonFormat = new() { WriteIndented = true };
-        
+
         private readonly PVOutputApiRateInformation _apiRateInformation = new();
 
         private readonly Dictionary<string, PVOutputWrapper> _apiClientCache = new CaseInsensitiveDictionary<PVOutputWrapper>();
@@ -107,7 +108,7 @@ namespace CodeCaster.PVBridge.PVOutput
             var statuses = snapshots.Select(s =>
                 {
                     Logger.LogTrace("Mapping status: {status}", s);
-                    
+
                     return Mapper.Map(_batchStatusBuilder, s);
                 })
                 .ToList();
@@ -133,24 +134,37 @@ namespace CodeCaster.PVBridge.PVOutput
 
         protected override async Task<ApiResponse<IReadOnlyCollection<DaySummary>>> GetDaySummariesAsync(DataProviderConfiguration outputConfig, DateTime since, DateTime? until, CancellationToken cancellationToken)
         {
-            var summaries = new List<DaySummary>();
+            var yesterday = DateTime.Today.AddDays(-1);
 
             // PVOutput can't get summaries for the current day.
             if (until == null || until.Value.Date >= DateTime.Today)
             {
-                until = DateTime.Today.AddDays(-1);
+                until = yesterday;
             }
 
             // Backlog sync for today requested.
-            if (until <= since)
+            if (since > yesterday)
             {
-                return summaries;
+                // Holy
+                return Array.Empty<DaySummary>();
             }
 
             var apiClient = GetApiClient(outputConfig);
 
-            Logger.LogDebug("Getting PVOutput summaries from {since} until {until} for system {systemId}", since, until, apiClient.ApiClient.OwnedSystemId);
+            if (since == until)
+            {
+                Logger.LogDebug("Getting PVOutput summaries for {day} for system {systemId}", since, apiClient.ApiClient.OwnedSystemId);
 
+                return await GetDaySummaryAsync(since, apiClient, cancellationToken);
+            }
+
+            Logger.LogDebug("Getting PVOutput summaries from {since} until {until} for system {systemId}", since, until, apiClient.ApiClient.OwnedSystemId);
+            
+            return await GetDaySummariesAsync(since, until, apiClient, cancellationToken);
+        }
+
+        private async Task<ApiResponse<IReadOnlyCollection<DaySummary>>> GetDaySummariesAsync(DateTime since, [DisallowNull] DateTime? until, PVOutputWrapper apiClient, CancellationToken cancellationToken)
+        {
             var summariesResponse = await TryHandleAndLogRequest(() => apiClient.ApiClient.Output.GetOutputsForPeriodAsync(since, until.Value, cancellationToken: cancellationToken), "PVOutput-Output-GetOutputsForPeriod");
 
             if (summariesResponse.Status == ApiResponseStatus.RateLimited)
@@ -160,18 +174,42 @@ namespace CodeCaster.PVBridge.PVOutput
 
             if (summariesResponse.Response?.Values == null)
             {
-                Logger.LogDebug("Empty response");
+                Logger.LogDebug("Empty GetOutputsForPeriod response");
 
-                return summaries.AsReadOnly();
+                return Array.Empty<DaySummary>();
             }
 
-            summaries.AddRange(summariesResponse.Response.Values.Select(s => new DaySummary
+            return summariesResponse.Response.Values.Select(s => new DaySummary
             {
                 Day = s.OutputDate,
                 DailyGeneration = s.EnergyGenerated,
-            }));
+            }).ToList();
+        }
 
-            return summaries;
+        private async Task<ApiResponse<IReadOnlyCollection<DaySummary>>> GetDaySummaryAsync(DateTime since, PVOutputWrapper apiClient, CancellationToken cancellationToken)
+        {
+            var summaryResponse = await TryHandleAndLogRequest(() => apiClient.ApiClient.Output.GetOutputForDateAsync(since, cancellationToken: cancellationToken), "PVOutput-Output-GetOutputForDate");
+
+            if (summaryResponse.Status == ApiResponseStatus.RateLimited)
+            {
+                return ApiResponse<IReadOnlyCollection<DaySummary>>.RateLimited(summaryResponse.RetryAfter!.Value);
+            }
+
+            if (summaryResponse.Response?.Value == null)
+            {
+                Logger.LogDebug("Empty GetOutputForDate response");
+
+                return Array.Empty<DaySummary>();
+            }
+
+            return new[]
+            {
+                new DaySummary
+                {
+                    Day = summaryResponse.Response.Value.OutputDate,
+                    DailyGeneration = summaryResponse.Response.Value.EnergyGenerated,
+                }
+            };
         }
 
         // How to save account premium status on configuration? From UI only? And as boolean? Or the end date?
@@ -279,7 +317,7 @@ namespace CodeCaster.PVBridge.PVOutput
         private PVOutputWrapper GetApiClient(DataProviderConfiguration outputConfig)
         {
             var pvOutputConfiguration = outputConfig as PVOutputConfiguration ?? new PVOutputConfiguration(outputConfig);
-            
+
             if (string.IsNullOrWhiteSpace(pvOutputConfiguration.SystemId))
                 throw new ArgumentException(nameof(pvOutputConfiguration.SystemId) + " not configured.");
 

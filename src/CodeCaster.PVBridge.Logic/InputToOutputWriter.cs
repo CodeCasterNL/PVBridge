@@ -225,7 +225,9 @@ namespace CodeCaster.PVBridge.Logic
                 // TODO: actually batch
                 return await writer.WriteDaySummariesAsync(outputConfig, new[] { inputSummary }, cancellationToken);
             }
-
+            
+            _logger.LogInformation("Summary {summary} for {day} already known at {output}", inputSummary, inputSummary.Day.LoggableDayName(), outputConfig.NameOrType);
+            
             return ApiResponse.Succeeded;
         }
 

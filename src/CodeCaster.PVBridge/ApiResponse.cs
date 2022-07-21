@@ -10,9 +10,12 @@ namespace CodeCaster.PVBridge
         public virtual bool IsSuccessful => Status == ApiResponseStatus.Succeeded;
 
         /// <summary>
-        /// The date when this API call can be retried.
+        /// The date when this API call can be retried. Not null when <see cref="IsRateLimited"/> is <c>true</c>.
         /// </summary>
         public DateTime? RetryAfter { get; init; }
+
+        [MemberNotNullWhen(true, "RetryAfter")]
+        public bool IsRateLimited => Status == ApiResponseStatus.RateLimited;
 
         public static ApiResponse Succeeded => new(ApiResponseStatus.Succeeded);
 

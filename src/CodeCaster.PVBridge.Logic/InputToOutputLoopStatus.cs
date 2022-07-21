@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging;
 
 namespace CodeCaster.PVBridge.Logic
 {
+    // TODO: magic numbers to consts
     public class InputToOutputLoopStatus
     {
         private readonly ILogger _logger;
@@ -279,9 +280,9 @@ namespace CodeCaster.PVBridge.Logic
                 _successiveErrors = 0;
             }
 
-            if (response.Status == ApiResponseStatus.RateLimited)
+            if (response.IsRateLimited)
             {
-                var waitSpan = response.RetryAfter!.Value - DateTime.Now;
+                var waitSpan = response.RetryAfter.Value - DateTime.Now;
 
                 _continueAt = response.RetryAfter.Value;
 
@@ -291,13 +292,13 @@ namespace CodeCaster.PVBridge.Logic
             {
                 _successiveErrors++;
 
-                var minutesToWait = 10 * _successiveErrors;
+                var minutesToWait = Math.Min(120, 10 * _successiveErrors);
 
                 var retryAt = DateTime.Now.AddMinutes(minutesToWait);
 
                 _continueAt = new[] { _continueAt, retryAt }.Max();
 
-                _logger.LogInformation("API error occurred, waiting until {continueAt}, in {minutesToWait}", _continueAt, minutesToWait.SIfPlural("minute"));
+                _logger.LogInformation("{apiErrorCount} occurred, waiting until {continueAt}, in {minutesToWait}", _successiveErrors.SIfPlural("API error"), _continueAt, minutesToWait.SIfPlural("minute"));
             }
         }
 

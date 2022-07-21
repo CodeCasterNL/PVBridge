@@ -14,7 +14,8 @@ namespace CodeCaster.PVBridge
     /// <summary>
     /// Caches day summaries per configuration.
     /// 
-    /// TODO: implement cache invalidation beyond retention limit (14 or 90 days).
+    /// TODO: implement cache invalidation beyond retention limit (14 or 90 days) for long uptimes.
+    /// TODO: save in JSON in AppData for all other occasions, see #10.
     /// </summary>
     public abstract class CachingSummaryProvider : IDataProvider
     {

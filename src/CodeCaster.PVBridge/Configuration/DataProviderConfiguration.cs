@@ -1,4 +1,5 @@
-﻿using System.Linq;
+﻿using System;
+using System.Linq;
 using System.Text.Json.Serialization;
 using CodeCaster.PVBridge.Utils;
 
@@ -29,6 +30,8 @@ namespace CodeCaster.PVBridge.Configuration
         /// Debugging: GoodWeFileReader, CSV.
         /// </devdoc>
         public string Type { get; set; }
+
+        public DateTime? GetOptionDateTime(string key) => Options.TryGetValue(key, out var s) && DateTime.TryParse(s, out var d) ? d : null;
 
         /// <summary>
         /// Either the name or the type.

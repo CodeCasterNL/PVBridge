@@ -231,10 +231,7 @@ namespace CodeCaster.PVBridge.Logic
 
         private DateTime CalculateBacklogStart()
         {
-            // TODO: start from install date, save last synced day in JSON somewhere (not config), see #10
-            var minDate = _syncStart;
-
-            var backlogStart = DateTime.Today.AddDays(-13);
+            var backlogStart = _syncStart;
 
             var days = (int)Math.Ceiling((DateTime.Now - backlogStart).TotalDays) + 1;
 

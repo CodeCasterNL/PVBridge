@@ -252,6 +252,13 @@ namespace CodeCaster.PVBridge.Service
                     // TODO: further back, see #10
                     var syncStart = DateTime.Today.AddDays(-14);
 
+                    // TODO: partial quickfix for #23, don't sync before install date or it hangs until 14 days since have passed.
+                    var installDate = input.GetOptionDateTime("InstallDate");
+                    if (installDate > syncStart)
+                    {
+                        syncStart = installDate.Value.Date;
+                    }
+
                     var loop = new InputToOutputLoop(_loopLogger, _ioWriter, input, outputs, syncStart);
 
                     _messageBroker.StatusSyncRequested += loop.StatusSyncRequested;

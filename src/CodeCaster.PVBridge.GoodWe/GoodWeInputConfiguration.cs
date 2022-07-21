@@ -37,7 +37,7 @@ namespace CodeCaster.PVBridge.GoodWe
         [JsonIgnore]
         public DateTime? InstallDate
         {
-            get => Options.TryGetValue(nameof(InstallDate), out var s) && DateTime.TryParse(s, out var d) ? d : null;
+            get => base.GetOptionDateTime(nameof(InstallDate));
             set => Options[nameof(InstallDate)] = value?.ToString("O");
         }
     }

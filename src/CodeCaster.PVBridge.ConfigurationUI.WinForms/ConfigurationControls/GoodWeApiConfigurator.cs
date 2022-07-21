@@ -99,6 +99,8 @@ namespace CodeCaster.PVBridge.ConfigurationUI.WinForms.ConfigurationControls
 
             SetStatus(GoodWeStatus.Authorized);
 
+            _client = client;
+            
             var firstPlant = plantList.Data.list?.FirstOrDefault();
 
             if (firstPlant?.inverters?.Any() != true)
@@ -112,7 +114,6 @@ namespace CodeCaster.PVBridge.ConfigurationUI.WinForms.ConfigurationControls
             plantComboBox.ValueMember = nameof(AddressWithInverters.id);
             plantComboBox.DisplayMember = nameof(AddressWithInverters.DisplayString);
 
-            _client = client;
             plantComboBox.DataSource = plantList.Data.list;
 
             plantComboBox.SelectedIndex = 0;
@@ -132,8 +133,6 @@ namespace CodeCaster.PVBridge.ConfigurationUI.WinForms.ConfigurationControls
 
             if (plantComboBox.SelectedItem == null)
             {
-                _client = null;
-
                 SetStatus(GoodWeStatus.Uninitialized);
 
                 return;

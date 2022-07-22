@@ -250,7 +250,7 @@ namespace CodeCaster.PVBridge.Service
                     _logger.LogInformation("Configuring {input} to {outputs}", input.NameOrType, string.Join(", ", outputs.Select(o => o.NameOrType)));
 
                     // TODO: further back, see #10
-                    var syncStart = DateTime.Today.AddDays(-14);
+                    var syncStart = DateTime.Today.AddDays(-13);
 
                     var loop = new InputToOutputLoop(_loopLogger, _ioWriter, input, outputs, syncStart);
 

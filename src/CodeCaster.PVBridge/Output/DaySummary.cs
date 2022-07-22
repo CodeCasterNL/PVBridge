@@ -16,7 +16,7 @@ namespace CodeCaster.PVBridge.Output
         
         public override string ToString()
         {
-            return $"DaySummary: D: {Day:yyyy-MM-dd}, Generation: " + (DailyGeneration?.FormatWattHour() ?? "(null)");
+            return $"DaySummary: D: {Day.LoggableDayName()}, Generation: " + (DailyGeneration?.FormatWattHour() ?? "(null)");
         }
     }
 }

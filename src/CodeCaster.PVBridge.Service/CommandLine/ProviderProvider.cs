@@ -20,6 +20,7 @@ namespace CodeCaster.PVBridge.Service.CommandLine
 
         internal async Task<(DataProviderConfiguration? input, DataProviderConfiguration? output)> GetConfigurationAsync(string? inputNameOrType, string? outputNameOrType)
         {
+            // TODO: handle corrupt config
             await ConfigurationProtector.UnprotectAsync(_configuration);
 
             var loopConfigurations = _configuration.ReadConfiguration();

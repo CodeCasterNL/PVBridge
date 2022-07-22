@@ -31,7 +31,7 @@ namespace CodeCaster.PVBridge.Service.CommandLine
 
             if (since > until || until > now)
             {
-                Console.WriteLine("The since date should be before --until, and the latter before now. Type --help for more information.");
+                Console.WriteLine("The since date should be before the until date, and the latter before now. Type --help for more information.");
 
                 return;
             }

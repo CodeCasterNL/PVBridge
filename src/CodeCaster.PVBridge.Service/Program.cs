@@ -40,7 +40,7 @@ namespace CodeCaster.PVBridge.Service
                 // PVbridge.exe service <install --path xxx |uninstall|run|start>
                 rootCommand.AddCommand(GetServiceCommand(host));
 
-                // PVbridge.exe sync [yyyy-MM-dd [--until yyyy-MM-dd]] [--input xxx] [--output xxx]
+                // PVbridge.exe sync [yyyy-MM-dd [yyyy-MM-dd]] [--input xxx] [--output xxx]
                 rootCommand.AddCommand(GetSyncCommand(host));
 
                 await rootCommand.InvokeAsync(args);
@@ -58,6 +58,11 @@ namespace CodeCaster.PVBridge.Service
             }
         }
 
+        /// <summary>
+        /// Builds the commandline command to sync (PVBridge.exe sync 2022-07-23).
+        /// </summary>
+        /// <param name="host"></param>
+        /// <returns></returns>
         private static Command GetSyncCommand(IHost host)
         {
             var sinceArgument = new Argument<DateTime?>("since", "The day to sync, or start syncing from. Format: yyyy-MM-dd.")
@@ -65,10 +70,9 @@ namespace CodeCaster.PVBridge.Service
                 Arity = ArgumentArity.ZeroOrOne
             };
 
-            // TODO: make Argument<DateTime?>, but that doesn't work: https://github.com/dotnet/command-line-api/issues/1669
-            var untilOption = new Option<DateTime?>(new[] { "--until", "-u" }, "The inclusive end date to sync. Format: yyyy-MM-dd.")
+            var untilOption = new Argument<DateTime?>("until", "The inclusive end date to sync. Format: yyyy-MM-dd.")
             {
-                IsRequired = false
+                Arity = ArgumentArity.ZeroOrOne
             };
 
             var inputOption = new Option<string>(new[] { "--input", "-i" }, "TODO: require when multiple found in config")
@@ -101,7 +105,7 @@ namespace CodeCaster.PVBridge.Service
                 // Sync the current status if since and until are null.
                 if (since == null && until.HasValue)
                 {
-                    Console.WriteLine("You cannot pass --until without since. Type --help for more information.");
+                    Console.WriteLine("You cannot pass until without since. Type --help for more information.");
 
                     return;
                 }
@@ -134,6 +138,9 @@ namespace CodeCaster.PVBridge.Service
             return syncCommand;
         }
 
+        /// <summary>
+        /// Builds the commandline command to run and (un)install the service.
+        /// </summary>
         private static Command GetServiceCommand(IHost host)
         {
             var serviceManager = new WindowsServiceManager(host.Services.GetRequiredService<ILogger<WindowsServiceManager>>());
@@ -213,9 +220,6 @@ namespace CodeCaster.PVBridge.Service
                     context.HostingEnvironment.ApplicationName = Program.ApplicationName;
 
                     // Read "C:\ProgramData\PVBridge\PVBridge.AccountConfig.json". Optional because it doesn't exist on first run.
-                    var globalSettingsFilePath = ConfigurationReader.GlobalSettingsFilePath;
-                    var globalSettingsFileName = Path.GetFileNameWithoutExtension(ConfigurationReader.GlobalSettingsFilePath);
-
                     config.AddJsonFile(ConfigurationReader.GlobalSettingsFilePath, optional: true, reloadOnChange: true);
                 })
                 .ConfigureServices((context, services) =>
@@ -231,6 +235,15 @@ namespace CodeCaster.PVBridge.Service
                     services.AddSingleton<IClientAndServiceMessageBroker, MessageBroker>(r => r.GetRequiredService<MessageBroker>());
 
                     //services.AddHostedService<GrpcService>();
+                })
+                .ConfigureLogging(logging =>
+                {
+                    logging.AddSimpleConsole(console =>
+                    {
+                        console.IncludeScopes = true;
+                        console.SingleLine = true;
+                        console.TimestampFormat = "yyyy-MM-dd HH:mm:ss.fff ";
+                    });
                 })
                 .UseWindowsServiceExtensions();
         }

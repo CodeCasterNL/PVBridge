@@ -247,12 +247,12 @@ namespace CodeCaster.PVBridge.Logic
 
                 if (!_syncedDays.TryGetValue(day, out var lastDaySnapshot))
                 {
-                    _logger.LogTrace("Day {day} missing, starting sync at {syncDateTime}", day, dayTime);
+                    _logger.LogTrace("Day {day} missing, starting sync at {syncDateTime}", day.LoggableDayName(), dayTime);
 
                     return (_backlogStart = dayTime).Value;
                 }
 
-                _logger.LogDebug("Day {day} synced at {syncDateTime}", day, lastDaySnapshot);
+                _logger.LogDebug("Day {day} synced at {syncDateTime}", day.LoggableDayName(), lastDaySnapshot);
 
                 // Assume a later sync fully synced that day.
                 if (lastDaySnapshot.Date > dayTime.Date)

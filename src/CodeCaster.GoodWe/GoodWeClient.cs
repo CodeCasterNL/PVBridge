@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
-using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -48,6 +47,7 @@ namespace CodeCaster.GoodWe
             _logger = logger;
             _jsonDataDirectory = jsonDataDirectory;
             _accountConfiguration = accountConfiguration;
+
             _client = CreateClient();
         }
 
@@ -296,20 +296,20 @@ namespace CodeCaster.GoodWe
             var dateSettingsResponse = await _client.PostAsync(endpoint, null);
             var responseObject = await dateSettingsResponse.Content.ReadFromJsonAsync<ResponseBase<DateFormatSettingsList>>();
 
-            if (responseObject == null || responseObject.HasError || responseObject.Data == null || responseObject.Data.Selected == null)
+            if (responseObject?.HasError != false || responseObject.Data.Selected == null)
             {
                 throw new InvalidOperationException("Could not determine date format for user");
             }
-            
+
             var formatId = responseObject.Data.Selected.date_text;
 
             _logger.LogDebug("Translating date format {selectedDateFormat}", formatId);
-            
+
             if (!_dateFormats.TryGetValue(formatId, out var format))
             {
                 throw new ArgumentException("Could not translate date format " + formatId);
             }
-            
+
             _serializerOptions = new JsonSerializerOptions
             {
                 PropertyNameCaseInsensitive = true,
@@ -354,6 +354,9 @@ namespace CodeCaster.GoodWe
             return client;
         }
 
+        /// <summary>
+        /// TODO: this writes the deserialized object as JSON again. This is wrong, we can't save that which we can't deserialize, and we'll miss new fields in the JSON.
+        /// </summary>
         private Task WriteJson<T>(string filePrefix, T response)
         {
             if (string.IsNullOrWhiteSpace(_jsonDataDirectory))

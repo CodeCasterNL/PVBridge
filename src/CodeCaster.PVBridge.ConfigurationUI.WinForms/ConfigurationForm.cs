@@ -121,7 +121,7 @@ namespace CodeCaster.PVBridge.ConfigurationUI.WinForms
                 InvokeIfRequired(() =>
                 {
                     versionLinkLabel.Text = $"{newVersion}Download {versionString} here.";
-                    versionLinkLabel.LinkArea = new LinkArea(newVersion.Length, versionLinkLabel.Text.Length - newVersion.Length);
+                    versionLinkLabel.LinkArea = new LinkArea(newVersion.Length, versionLinkLabel.Text.Length - newVersion.Length - 1);
                     versionLinkLabel.Visible = true;
                 });
             }

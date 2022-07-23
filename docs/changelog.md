@@ -4,6 +4,13 @@ order: 4
 ---
 ## Changelog
 
+### [v0.7.0](https://github.com/CodeCasterNL/PVBridge/releases/tag/v0.7.0)
+Revert the past two changes, fix:
+
+* Wait until the next interval.
+* Backlog processing doesn't hang on empty/0 days.
+* ...
+
 ### [v0.6.4](https://github.com/CodeCasterNL/PVBridge/releases/tag/v0.6.4)
 Fix GoodWe inverter selection, or so we hope.
 

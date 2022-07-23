@@ -1,10 +1,39 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk.Worker">
 
 	<PropertyGroup>
-		<TargetFramework>net6.0</TargetFramework>
-		<UserSecretsId>dotnet-CodeCaster.PVBridge.Service-CDF7DE3C-3D88-4288-AC6B-9B6CD5F51162</UserSecretsId>
 		<AssemblyName>PVBridge</AssemblyName>
+		<SelfContained>False</SelfContained>
+		<RuntimeIdentifier>win-x64</RuntimeIdentifier>
+		<TargetFramework>net6.0-windows</TargetFramework>
+		<ApplicationManifest>app.manifest</ApplicationManifest>
+		<SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+
+		<UserSecretsId>dotnet-CodeCaster.PVBridge.Service-CDF7DE3C-3D88-4288-AC6B-9B6CD5F51162</UserSecretsId>
+	
+		<!-- PVOutput.net -> Travis.UriTemplates -> NETStandard.Library 1.6.0 -> System.* -->
+		<NoWarn>$(NoWarn);NU1605</NoWarn>
 	</PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="CodeCaster.WindowsServiceExtensions" Version="3.0.1" />
+		<PackageReference Include="Microsoft.Extensions.Hosting" Version="6.0.1" />
+		<PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" Version="6.0.0" />
+		<PackageReference Include="Microsoft.Extensions.Logging.Log4Net.AspNetCore" Version="6.1.0" />
+		<PackageReference Include="Scrutor" Version="4.2.0" />
+		<PackageReference Include="System.CommandLine" Version="2.0.0-beta3.22114.1" />
+	</ItemGroup>
+
+	<!-- Hax to prevent all runtimes to be copied -->
+	<ItemGroup>
+		<PackageReference Include="GrpcDotNetNamedPipes" Version="1.4.4" ExcludeAssets="runtimes" GeneratePathProperty="true" />
+
+		<!--<None Include="$(PkgGrpcDotNetNamedPipes)\runtimes\win-x64\*">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</None>-->
+	</ItemGroup>
+	<!-- End hax-->
+
+	<!-- TODO: fix nesting -->
 
 	<ItemGroup>
 		<Content Remove="log4net.config" />
@@ -12,7 +41,7 @@
 	</ItemGroup>
 
 	<ItemGroup>
-	  <AdditionalFiles Include="app.manifest" />
+		<AdditionalFiles Include="app.manifest" />
 	</ItemGroup>
 
 	<ItemGroup>
@@ -22,16 +51,6 @@
 		<None Include="log4net.config">
 			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
 		</None>
-	</ItemGroup>
-
-	<ItemGroup>
-		<PackageReference Include="CodeCaster.WindowsServiceExtensions" Version="3.0.1" />
-		<PackageReference Include="GrpcDotNetNamedPipes" Version="1.4.4" />
-		<PackageReference Include="Microsoft.Extensions.Hosting" Version="6.0.1" />
-		<PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" Version="6.0.0" />
-		<PackageReference Include="Microsoft.Extensions.Logging.Log4Net.AspNetCore" Version="6.1.0" />
-		<PackageReference Include="Scrutor" Version="4.2.0" />
-		<PackageReference Include="System.CommandLine" Version="2.0.0-beta3.22114.1" />
 	</ItemGroup>
 
 	<ItemGroup>

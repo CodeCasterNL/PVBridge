@@ -30,7 +30,7 @@ namespace CodeCaster.PVBridge.GoodWe
         public async Task<ApiResponse<Snapshot>> GetCurrentStatusAsync(DataProviderConfiguration configuration, CancellationToken cancellationToken)
         {
             var goodWeConfig = GetConfig(configuration);
-            
+
             var plantId = GetConfigOrThrow(goodWeConfig.PlantId, nameof(goodWeConfig.PlantId));
 
             var apiClient = GetApiClient(goodWeConfig);
@@ -38,7 +38,7 @@ namespace CodeCaster.PVBridge.GoodWe
             Logger.LogDebug("Getting GoodWe current status for system {plantId}", plantId);
 
             var snapshot = await apiClient.GetMonitorDetailRaw(plantId, cancellationToken);
-            
+
             var mapped = Mapper.Map(Logger, snapshot.Data);
 
             return HandleResponse(snapshot, mapped);
@@ -55,8 +55,22 @@ namespace CodeCaster.PVBridge.GoodWe
             Logger.LogDebug("Getting GoodWe summaries from {since} until {until} for system {plantId}", since, until, plantId);
 
             var outputs = await apiClient.GetBatchAsync(plantId, since, until, cancellationToken);
-            
+
             var mapped = Mapper.Map(outputs.Data);
+
+            // API data seems to have gaps in its summaries sometimes, but they do catch up. Usually.
+            //if (day.DailyGeneration.GetValueOrDefault() == 0)
+            //{
+                //if (d == 0 && m == 0)
+                //{
+                //    // We haven't received data before for this backlog sync.
+                //    _logger.LogWarning("No input summary data for {input} on {day}, probably API connectivity errors, backing off", _inputProvider.NameOrType, day.LoggableDayName());
+                //
+                //    _taskStatus.HandleApiResponse(ApiResponse.RateLimited(DateTime.Now.AddMinutes(15)));
+                //
+                //    return;
+                //}
+            //}
 
             return HandleResponse(outputs, mapped);
         }

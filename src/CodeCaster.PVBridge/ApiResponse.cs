@@ -45,13 +45,18 @@ namespace CodeCaster.PVBridge
         /// </summary>
         public T? Response { get; }
 
-        public new static ApiResponse<T> RateLimited(DateTime retryAfter) => new(new ApiResponse(ApiResponseStatus.RateLimited));
+        public new static ApiResponse<T> RateLimited(DateTime retryAfter) => new(ApiResponse.RateLimited(retryAfter));
 
         public static ApiResponse<T> Failed(T? response = default) => new(response, ApiResponseStatus.Failed);
 
         public ApiResponse(ApiResponse other)
             : this(other.Status)
         {
+            if (other.Status == ApiResponseStatus.RateLimited && other.RetryAfter == null)
+            {
+                throw new ArgumentException("Can't create a RateLimited ApiResponse without RetryAfter", nameof(other));
+            }
+
             RetryAfter = other.RetryAfter;
         }
 

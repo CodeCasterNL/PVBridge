@@ -2,8 +2,19 @@
 {
     public enum ApiResponseStatus
     {
+        /// <summary>
+        /// 200 OK. Doesn't always mean the JSON is parseable or present.
+        /// </summary>
         Succeeded,
+
+        /// <summary>
+        /// Not 200 and not 400.
+        /// </summary>
         Failed,
+
+        /// <summary>
+        /// 420/429
+        /// </summary>
         RateLimited,
         
         /// <summary>

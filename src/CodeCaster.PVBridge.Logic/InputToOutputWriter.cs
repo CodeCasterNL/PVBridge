@@ -55,12 +55,6 @@ namespace CodeCaster.PVBridge.Logic
         {
             _logger.LogDebug("Getting {input} summaries from {since} until {until}", providerConfig.NameOrType, since, until);
 
-            if (since.Date == DateTime.Today || since.Date == DateTime.Today.AddDays(-1) && DateTime.Now.Hour < 6)
-            {
-                // Cannot get summaries for today or yesterday up till like 06:00 the next day.
-                return new ApiResponse<IReadOnlyCollection<DaySummary>>(new List<DaySummary>());
-            }
-
             var reader = GetProvider<IDataProvider>(providerConfig.Type);
 
             var summaries = await reader.GetSummariesAsync(providerConfig, since, until, cancellationToken);

@@ -271,6 +271,7 @@ namespace CodeCaster.PVBridge.Logic
             throw new InvalidOperationException($"Checking {days.SIfPlural("day")} since {backlogStart:O} did not yield a sync start time");
         }
 
+        // TODO: pass config
         public void HandleApiResponse(ApiResponse response)
         {
             _continueAt = null;

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -65,7 +66,7 @@ namespace CodeCaster.PVBridge.Logic
         private void ContinueLoop()
         {
             using var oldToken = _loopWaitCancelToken;
-            
+
             _loopWaitCancelToken = new CancellationTokenSource();
 
             oldToken.Cancel();
@@ -125,13 +126,10 @@ namespace CodeCaster.PVBridge.Logic
             }
         }
 
-        /// <summary>
-        /// TODO: the cyclomatic complexity is bonkers.
-        /// </summary>
         private async Task SyncBacklogAsync()
         {
             var since = _taskStatus.GetBacklogStart();
-            
+
             var until = DateTime.Now;
 
             // PVOutput's limit is 50 records, 150 for donation. GoodWe's limit appears to work with 40, not tested further.
@@ -160,126 +158,135 @@ namespace CodeCaster.PVBridge.Logic
 
                 foreach (var outputConfig in _outputProviders)
                 {
-                    var outputSummaries = await _ioWriter.GetSummariesAsync(outputConfig, monthStart, monthEnd, _stoppingToken);
+                    var syncMonthResult = await SyncPeriodAsync(outputConfig, monthStart, monthEnd, inputSummaries);
 
-                    _taskStatus.HandleApiResponse(outputSummaries);
-
-                    // "No data" (no summary for today or yesterday) gets returned as an error, so only check for rate limit here.
-                    if (outputSummaries.Status is ApiResponseStatus.RateLimited)
+                    if (!syncMonthResult.Any())
                     {
-                        return;
+                        // No days were synced, continue to next output.
+                        // TODO: log
+                        continue;
                     }
 
-                    var days = (int)Math.Ceiling((monthEnd - monthStart).TotalDays);
-
-                    _logger.LogDebug("Checking backlog from {monthStart} to {monthEnd}", monthStart, monthEnd);
-
-                    for (int d = 0; d < days; d++)
+                    foreach (var dayResult in syncMonthResult)
                     {
-                        var day = monthStart.AddDays(d);
-
-                        // When we shut down and continue the next day, start syncing today at 00:00.
-                        // Otherwise, it may be a backlog sync of just today; then sync since monthStart's time.
-                        if (d > 0 && day.Date == DateTime.Today)
-                        {
-                            day = day.Date;
-                        }
-
-                        DaySummary? inputSummary = null;
-                        DaySummary? outputSummary = null;
-
-                        // When a day is 6 hours old, we'd expect a summary by then.
-                        var shouldHaveSummary = day < DateTime.Now.AddHours(-(24 + 6));
-                        if (shouldHaveSummary)
-                        {
-                            inputSummary = inputSummaries.Response?.FirstOrDefault(s => s.Day == day.Date);
-                            outputSummary = outputSummaries.Response?.FirstOrDefault(s => s.Day == day.Date);
-
-                            // API data seems to have gaps in its summaries sometimes, but they do catch up. Usually.
-                            if ((inputSummary?.DailyGeneration).GetValueOrDefault() == 0)
-                            {
-                                if (d == 0 && m == 0)
-                                {
-                                    // We haven't received data before for this backlog sync.
-                                    _logger.LogWarning("No input summary data for {input} on {day}, probably API connectivity errors, backing off", _inputProvider.NameOrType, day.LoggableDayName());
-                                    
-                                    _taskStatus.HandleApiResponse(ApiResponse.RateLimited(DateTime.Now.AddMinutes(15)));
-
-                                    return;
-                                }
-                            }
-
-                            // When input and output are (pretty much) equal, don't sync this day
-                            if (inputSummary != null && outputSummary != null && Math.Abs(inputSummary.DailyGeneration!.Value - outputSummary.DailyGeneration.GetValueOrDefault()) < 0.1d)
-                            {
-                                _logger.LogDebug("{day} is already synced ({wH} on both sides), skipping", day.LoggableDayName(), inputSummary.DailyGeneration.Value.FormatWattHour());
-
-                                _taskStatus.DataSynced(day);
-
-                                continue;
-                            }
-                        }
-
-                        // Should not happen (_state should be SyncLiveStatus), but alas - we'll have at most one snapshot, get that.
-                        if (day > DateTime.Now - _mainLoopInterval)
-                        {
-                            await SyncCurrentStatusAsync();
-
-                            return;
-                        }
-
-                        // Otherwise, sync from `day`, which can be today at any time < now - main loop interval, or any earlier day.
-                        var dayResult = await _ioWriter.SyncPeriodDetailsAsync(_inputProvider, outputConfig, day, _stoppingToken);
-
                         _taskStatus.HandleApiResponse(dayResult);
 
-                        if (dayResult.Status == ApiResponseStatus.Succeeded && dayResult.Response?.Count == 0 && day.Date == DateTime.Today)
+                        if (dayResult.IsSuccessful)
+                        {
+                            // Report as synced, so we don't report the same day twice.
+                            _taskStatus.DataSynced(dayResult.Response.Day);
+                        }
+                        // Somehow we received a summary for today with 0 output, consider that stale.
+                        else if (dayResult.Status == ApiResponseStatus.Succeeded && dayResult.Response?.DailyGeneration.GetValueOrDefault() == 0 && dayResult.Response.Day.Date == DateTime.Today)
                         {
                             _taskStatus.StaleDataReceived();
                         }
-
-                        // Failed or no results.
-                        if (!dayResult.IsSuccessful)
-                        {
-                            return;
-                        }
-
-                        var newestSnapshot = dayResult.Response.OrderByDescending(s => s.TimeTaken).First();
-
-                        if (day.Date == DateTime.Today)
-                        {
-                            // We're up to date until now.
-                            _lastStatus = newestSnapshot;
-                        }
-                        else
-                        {
-                            // When before today, report the summary (or last status), then continue.
-                            if (inputSummary == null || inputSummary.DailyGeneration < newestSnapshot.DailyGeneration)
-                            {
-                                inputSummary = new DaySummary
-                                {
-                                    Day = newestSnapshot.TimeTaken.Date,
-                                    DailyGeneration = newestSnapshot.DailyGeneration,
-                                };
-                            }
-
-                            var summaryResponse = await _ioWriter.WriteDaySummaryAsync(outputConfig, inputSummary, outputSummary, _stoppingToken);
-
-                            _taskStatus.HandleApiResponse(summaryResponse);
-
-                            if (!summaryResponse.IsSuccessful)
-                            {
-                                _logger.LogError("Failed to write summary for {day}: {status}", day.LoggableDayName(), summaryResponse.Status);
-
-                                return;
-                            }
-                        }
-
-                        // Report after writing summary, so we don't report the same day twice.
-                        _taskStatus.DataSynced(newestSnapshot.TimeTaken);
                     }
                 }
             }
+        }
+
+        /// <summary>
+        /// TODO: the cyclomatic complexity is bonkers.
+        /// </summary>
+        private async Task<List<ApiResponse<DaySummary>>> SyncPeriodAsync(DataProviderConfiguration outputConfig, DateTime monthStart, DateTime monthEnd, ApiResponse<IReadOnlyCollection<DaySummary>> inputSummaries)
+        {
+            var apiResponses = new List<ApiResponse<DaySummary>>();
+            
+            var outputSummaries = await _ioWriter.GetSummariesAsync(outputConfig, monthStart, monthEnd, _stoppingToken);
+
+            // "No data" (no summary for today or yesterday) gets returned as an error, so only check for rate limit here.
+            if (outputSummaries.Status is ApiResponseStatus.RateLimited or ApiResponseStatus.Failed)
+            {
+                apiResponses.Add(new(outputSummaries));
+
+                _logger.LogDebug("Failed response, synced {dayCount}: {days}", apiResponses.Count.SIfPlural("day"), apiResponses.Any() ? string.Join(", ", apiResponses) : "(null)");
+
+                return apiResponses;
+            }
+            
+            var days = (int)Math.Ceiling((monthEnd - monthStart).TotalDays) + 1;
+
+            _logger.LogDebug("Syncing backlog from {monthStart} to {monthEnd} ({days})", monthStart, monthEnd, days.SIfPlural("day"));
+
+            for (int d = 0; d < days; d++)
+            {
+                var dayResponse = await SyncDayAsync(outputConfig, monthStart, d, inputSummaries, outputSummaries);
+
+                apiResponses.Add(dayResponse);
+            }
+
+            return apiResponses;
+        }
+
+        private async Task<ApiResponse<DaySummary>> SyncDayAsync(DataProviderConfiguration outputConfig, DateTime since, int daysToAdd, ApiResponse<IReadOnlyCollection<DaySummary>> inputSummaries, ApiResponse<IReadOnlyCollection<DaySummary>> outputSummaries)
+        {
+            var day = since.AddDays(daysToAdd);
+
+            // When we shut down and continue the next day, start syncing today at 00:00.
+            // Otherwise, it may be a backlog sync of just today; then sync since monthStart's time.
+            if (daysToAdd > 0 && day.Date == DateTime.Today)
+            {
+                day = day.Date;
+            }
+
+            DaySummary? inputSummary = null;
+            DaySummary? outputSummary = null;
+
+            // When a day is 6 hours old, we'd expect a summary by then.
+            var shouldHaveSummary = day < DateTime.Now.AddHours(-(24 + 6));
+            if (shouldHaveSummary)
+            {
+                inputSummary = inputSummaries.Response?.FirstOrDefault(s => s.Day == day.Date);
+                outputSummary = outputSummaries.Response?.FirstOrDefault(s => s.Day == day.Date);
+
+                // When input and output are (pretty much) equal, don't sync this day
+                if (inputSummary?.DailyGeneration != null && outputSummary?.DailyGeneration != null
+                    && Math.Abs(inputSummary.DailyGeneration.Value - outputSummary.DailyGeneration.Value) < 0.1d)
+                {
+                    _logger.LogDebug("{day} is already synced ({wH} on both sides), skipping", day.LoggableDayName(), inputSummary.DailyGeneration.Value.FormatWattHour());
+
+                    return outputSummary;
+                }
+            }
+
+            // Otherwise, sync from `day`, which can be today at any time < now - main loop interval, or any earlier day.
+            var dayResult = await _ioWriter.SyncPeriodDetailsAsync(_inputProvider, outputConfig, day, _stoppingToken);
+
+            if (!dayResult.IsSuccessful)
+            {
+                return new(dayResult);
+            }
+
+            var newestSnapshot = dayResult.Response.OrderByDescending(s => s.TimeTaken).First();
+
+            // TODO: this doesn't belong here
+            //if (day.Date == DateTime.Today)
+            //{
+            //    // We're up to date until now.
+            //    _lastStatus = newestSnapshot;
+            //}
+
+            // When before today, report the summary (or last status), then continue.
+            if (inputSummary == null || inputSummary.DailyGeneration < newestSnapshot.DailyGeneration)
+            {
+                inputSummary = new DaySummary
+                {
+                    Day = newestSnapshot.TimeTaken.Date,
+                    DailyGeneration = newestSnapshot.DailyGeneration,
+                };
+            }
+
+            var summaryResponse = await _ioWriter.WriteDaySummaryAsync(outputConfig, inputSummary, outputSummary, _stoppingToken);
+
+            if (!summaryResponse.IsSuccessful)
+            {
+                _logger.LogError("Failed to write summary for {day}: {status}", day.LoggableDayName(), summaryResponse.Status);
+
+                return new(summaryResponse);
+            }
+
+            return inputSummary;
         }
 
         private async Task SyncCurrentStatusAsync()

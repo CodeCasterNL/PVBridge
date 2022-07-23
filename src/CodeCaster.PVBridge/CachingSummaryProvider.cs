@@ -41,10 +41,17 @@ namespace CodeCaster.PVBridge
 
             var (summaries, missingStart, missingEnd) = GetMissingDays(configuration, since, until, providerSummaryCache);
 
-            if (missingStart.HasValue)
+            // Cannot get summaries for today or yesterday up till like 06:00 the next day, with some slack.
+            var startsBeforeYesterday = since.Date < DateTime.Today.AddDays(-1) && DateTime.Now.Hour > 9;
+
+            if (missingStart.HasValue && startsBeforeYesterday)
             {
                 Logger.LogDebug("Getting {provider} summary data from {since} to {until}", configuration.NameOrType, missingStart, missingEnd);
 
+                // TODO: batch
+                // var months = ...
+                // TODO: should, on failure, get latest output(s) from that day as cheaply as possible and get the total from there.
+                // See #23.
                 var summariesResponse = await GetDaySummariesAsync(configuration, missingStart.Value, missingEnd, cancellationToken);
 
                 // Report result or error to UI
@@ -53,6 +60,7 @@ namespace CodeCaster.PVBridge
 
                 if (summariesResponse.Status != ApiResponseStatus.Succeeded || summariesResponse.Response == null)
                 {
+                    // Caller will handle.
                     return summariesResponse;
                 }
 

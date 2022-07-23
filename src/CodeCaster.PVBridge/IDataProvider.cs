@@ -18,7 +18,9 @@ namespace CodeCaster.PVBridge
         string Type { get; }
 
         /// <summary>
-        /// Returns a record for each day in the prior time period, date ascending, setting its output to null if no data is present for that day.
+        /// Returns a record for each day in the given time period, date ascending, setting its output to null if no data is present for that day.
+        ///
+        /// Can be called for 31 days at most.
         /// </summary>
         Task<ApiResponse<IReadOnlyCollection<DaySummary>>> GetSummariesAsync(DataProviderConfiguration configuration, DateTime since, DateTime? until = null, CancellationToken cancellationToken = default);
     }

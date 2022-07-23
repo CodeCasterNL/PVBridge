@@ -35,7 +35,7 @@ namespace CodeCaster.PVBridge.CsvWriter
             return ApiResponse.Succeeded;
         }
 
-        public async Task<ApiResponse> WriteDaySummariesAsync(DataProviderConfiguration outputConfig, IReadOnlyCollection<DaySummary> summaries, CancellationToken cancellationToken)
+        public async Task<ApiResponse<IReadOnlyCollection<DaySummary>>> WriteDaySummariesAsync(DataProviderConfiguration outputConfig, IReadOnlyCollection<DaySummary> summaries, CancellationToken cancellationToken)
         {
             var groupedByMonth = summaries.GroupBy(d => (d.Day.Year, d.Day.Month));
 
@@ -44,7 +44,8 @@ namespace CodeCaster.PVBridge.CsvWriter
                 await WriteMonthAsync(outputConfig, monthData, cancellationToken);
             }
 
-            return ApiResponse.Succeeded;
+            // TODO
+            return new ApiResponse<IReadOnlyCollection<DaySummary>>(ApiResponseStatus.Succeeded);
         }
 
         private static async Task WriteMonthAsync(DataProviderConfiguration outputConfig, IGrouping<(int Year, int Month), DaySummary> monthData, CancellationToken cancellationToken)

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using CodeCaster.GoodWe;
@@ -61,15 +62,15 @@ namespace CodeCaster.PVBridge.GoodWe
             // API data seems to have gaps in its summaries sometimes, but they do catch up. Usually.
             //if (day.DailyGeneration.GetValueOrDefault() == 0)
             //{
-                //if (d == 0 && m == 0)
-                //{
-                //    // We haven't received data before for this backlog sync.
-                //    _logger.LogWarning("No input summary data for {input} on {day}, probably API connectivity errors, backing off", _inputProvider.NameOrType, day.LoggableDayName());
-                //
-                //    _taskStatus.HandleApiResponse(ApiResponse.RateLimited(DateTime.Now.AddMinutes(15)));
-                //
-                //    return;
-                //}
+            //if (d == 0 && m == 0)
+            //{
+            //    // We haven't received data before for this backlog sync.
+            //    _logger.LogWarning("No input summary data for {input} on {day}, probably API connectivity errors, backing off", _inputProvider.NameOrType, day.LoggableDayName());
+            //
+            //    _taskStatus.HandleApiResponse(ApiResponse.RateLimited(DateTime.Now.AddMinutes(15)));
+            //
+            //    return;
+            //}
             //}
 
             return HandleResponse(outputs, mapped);

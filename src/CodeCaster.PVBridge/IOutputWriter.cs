@@ -32,6 +32,6 @@ namespace CodeCaster.PVBridge
         /// <summary>
         /// Write a batch of day summaries to the output.
         /// </summary>
-        Task<ApiResponse> WriteDaySummariesAsync(DataProviderConfiguration outputConfig, IReadOnlyCollection<DaySummary> summaries, CancellationToken cancellationToken);
+        Task<ApiResponse<IReadOnlyCollection<DaySummary>>> WriteDaySummariesAsync(DataProviderConfiguration outputConfig, IReadOnlyCollection<DaySummary> summaries, CancellationToken cancellationToken);
     }
 }

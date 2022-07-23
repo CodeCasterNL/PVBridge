@@ -68,7 +68,7 @@ namespace CodeCaster.PVBridge.PVOutput
             return addStatusResponse;
         }
 
-        public async Task<ApiResponse> WriteDaySummariesAsync(DataProviderConfiguration outputConfig, IReadOnlyCollection<DaySummary> summaries, CancellationToken cancellationToken)
+        public async Task<ApiResponse<IReadOnlyCollection<DaySummary>>> WriteDaySummariesAsync(DataProviderConfiguration outputConfig, IReadOnlyCollection<DaySummary> summaries, CancellationToken cancellationToken)
         {
             var apiClient = GetApiClient(outputConfig);
 
@@ -83,22 +83,35 @@ namespace CodeCaster.PVBridge.PVOutput
 
             Logger.LogDebug("Syncing {summaryCount} to PVOutput for system {systemId}", items.Length.SIfPlural("symmary", "summaries"), apiClient.ApiClient.OwnedSystemId);
 
-            ApiResponse<PVOutputBasicResponse> addOutputResponse = ApiResponse<PVOutputBasicResponse>.Failed();
+            var daySummaries = new List<DaySummary>();
 
             foreach (var outputPostBatch in items.Batch(BatchSize))
             {
-                foreach (var outputPost in outputPostBatch)
+                var batchList = outputPostBatch.ToList();
+
+                // TODO: donation only
+                //addOutputResponse = await TryHandleAndLogRequest(() => apiClient.ApiClient.Output.AddOutputsAsync(batchList, cancellationToken), "PVOutput-Output-AddBatch");
+                //daySummaries.AddRange(batchList.Select(...)
+
+                // Manually batch the batch.
+                foreach (var outputPost in batchList)
                 {
-                    addOutputResponse = await TryHandleAndLogRequest(() => apiClient.ApiClient.Output.AddOutputAsync(outputPost, cancellationToken), "PVOutput-Output-AddBatch");
+                    var daySummary = Mapper.Map(outputPost);
+
+                    daySummaries.Add(daySummary);
+
+                    var addOutputResponse = await TryHandleAndLogRequest(() => apiClient.ApiClient.Output.AddOutputAsync(outputPost, cancellationToken), "PVOutput-Output-AddOutput");
 
                     if (!addOutputResponse.IsSuccessful)
                     {
-                        return addOutputResponse;
+                        return new ApiResponse<IReadOnlyCollection<DaySummary>>(addOutputResponse, daySummaries);
                     }
+
+                    daySummary.SyncedAt = DateTime.Now;;
                 }
             }
 
-            return addOutputResponse;
+            return daySummaries;
         }
 
         public async Task<ApiResponse> WriteStatusesAsync(DataProviderConfiguration outputConfig, IReadOnlyCollection<Snapshot> snapshots, CancellationToken cancellationToken)
@@ -121,6 +134,7 @@ namespace CodeCaster.PVBridge.PVOutput
 
                 Logger.LogDebug("Syncing {statusCount} to PVOutput for system {systemId}", items.Length.SIfPlural("status", "statuses"), apiClient.ApiClient.OwnedSystemId);
 
+                // TODO: implement SyncedAt
                 batchResponse = await TryHandleAndLogRequest(() => apiClient.ApiClient.Status.AddBatchStatusAsync(items, cancellationToken), "PVOutput-Status-AddBatch");
 
                 if (batchResponse.Status != ApiResponseStatus.Succeeded)
@@ -220,7 +234,7 @@ namespace CodeCaster.PVBridge.PVOutput
             // Trigger configuration validation.
             _ = GetApiClient(outputConfig);
 
-            // TODO: premium accounts can sync further back.
+            // TODO: premium accounts can sync further back, see #10.
             return day <= DateTime.Now && day >= DateTime.Today.AddDays(-13);
         }
 
@@ -230,7 +244,7 @@ namespace CodeCaster.PVBridge.PVOutput
             _ = GetApiClient(outputConfig);
 
             // TODO: premium accounts can sync further back.
-            return day <= DateTime.Now && day >= DateTime.Today.AddDays(-90);
+            return day.Date <= DateTime.Today && day >= DateTime.Today.AddDays(-90);
         }
 
         [DebuggerStepThrough]

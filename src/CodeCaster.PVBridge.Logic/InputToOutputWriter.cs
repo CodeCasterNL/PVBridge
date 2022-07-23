@@ -37,7 +37,7 @@ namespace CodeCaster.PVBridge.Logic
         {
             _logger.LogDebug("Getting current status from {input}", input.NameOrType);
 
-            var snapshotResponse = await GetProvider<IInputProvider>(input.Type).GetCurrentStatusAsync(input, cancellationToken);
+            var snapshotResponse = await GetProviderByType<IInputProvider>(input.Type).GetCurrentStatusAsync(input, cancellationToken);
 
             await _messageBroker.SnapshotReceivedAsync(snapshotResponse);
 
@@ -55,7 +55,7 @@ namespace CodeCaster.PVBridge.Logic
         {
             _logger.LogDebug("Getting {input} summaries from {since} until {until}", providerConfig.NameOrType, since, until);
 
-            var reader = GetProvider<IDataProvider>(providerConfig.Type);
+            var reader = GetProviderByType<IDataProvider>(providerConfig.Type);
 
             var summaries = await reader.GetSummariesAsync(providerConfig, since, until, cancellationToken);
 
@@ -73,7 +73,7 @@ namespace CodeCaster.PVBridge.Logic
 
             var outputType = outputConfig.Type;
 
-            var outputResponse = await GetProvider<IOutputWriter>(outputType).WriteStatusAsync(outputConfig, currentStatus, cancellationToken);
+            var outputResponse = await GetProviderByType<IOutputWriter>(outputType).WriteStatusAsync(outputConfig, currentStatus, cancellationToken);
 
             if (outputResponse.IsSuccessful)
             {
@@ -87,6 +87,39 @@ namespace CodeCaster.PVBridge.Logic
             return outputResponse;
         }
 
+        public async Task<List<ApiResponse<DaySummary>>> SyncPeriodAsync(DataProviderConfiguration inputConfig, DataProviderConfiguration outputConfig, DateTime since, DateTime until, IReadOnlyCollection<DaySummary>? inputSummaries, IReadOnlyCollection<DaySummary>? outputSummaries, CancellationToken stoppingToken)
+        {
+            var apiResponses = new List<ApiResponse<DaySummary>>();
+
+            var days = since.GetDaysUntil(until).ToList();
+
+            _logger.LogDebug("Syncing backlog from {since} to {until} ({days})", since, until, days.Count.SIfPlural("day"));
+
+            foreach (var day in days)
+            {
+                var dayStart = day;
+
+                if (days.Count > 1 && day != days.First() && day.Date == DateTime.Today)
+                {
+                    // When we shut down yesterday or earlier and continue today, start syncing today at 00:00.
+                    dayStart = DateTime.Today;
+                }
+
+                // TODO: pass `until` so this works from command line (`sync 2022-07-23T08:00 2022-07-23T09:00`).
+                var dayResponse = await SyncDayAsync(inputConfig, outputConfig, dayStart, inputSummaries, outputSummaries, stoppingToken);
+
+                apiResponses.Add(dayResponse);
+
+                if (!dayResponse.IsSuccessful)
+                {
+                    break;
+                }
+            }
+
+            _logger.LogDebug("Synced backlog from {since} to {until} ({days})", since, until, days.Count.SIfPlural("day"));
+
+            return apiResponses;
+        }
 
         /// <summary>
         /// Get snapshot data for a period, usually 24 hours or today up to now.
@@ -94,18 +127,18 @@ namespace CodeCaster.PVBridge.Logic
 
         public async Task<ApiResponse<IReadOnlyCollection<Snapshot>>> SyncPeriodDetailsAsync(DataProviderConfiguration inputConfig, DataProviderConfiguration outputConfig, DateTime day, CancellationToken cancellationToken)
         {
+            var writer = GetProviderByType<IOutputWriter>(outputConfig.Type);
+
             var loggableDay = day.LoggableDayName();
 
-            var writer = GetProvider<IOutputWriter>(outputConfig.Type);
-
-            if (!writer.CanWriteDetails(outputConfig, day))
+            if (!CanWriteDetails(outputConfig, day))
             {
                 _logger.LogWarning("Provider {output} can't write on {loggableDay}", outputConfig.NameOrType, loggableDay);
 
                 return new ApiResponse<IReadOnlyCollection<Snapshot>>(new List<Snapshot>());
             }
 
-            var reader = GetProvider<IInputProvider>(inputConfig.Type);
+            var reader = GetProviderByType<IInputProvider>(inputConfig.Type);
 
             // TODO: if we were down for less than a couple of hours, try to update with as little calls as necessary.
             // First query the output:
@@ -125,9 +158,10 @@ namespace CodeCaster.PVBridge.Logic
                 : DateTime.Now;
 
             var snapshotResponse = await GetPeriodSnapshotsAsync(inputConfig, start, end, reader, loggableDay, cancellationToken);
-            
+
             if (!snapshotResponse.IsSuccessful)
             {
+                // Error or no data.
                 return snapshotResponse;
             }
 
@@ -146,6 +180,7 @@ namespace CodeCaster.PVBridge.Logic
             _logger.LogInformation("Syncing {loggableDay} ({firstSnapshot} until {lastSnapshot}) from {input} to {output}, {inputSnapshots} input snapshots, reduced to {reducedSnapshots}",
                                    loggableDay, inputSnapshots.First().TimeTaken, inputSnapshots.Last().TimeTaken, inputConfig.NameOrType, outputConfig.NameOrType, inputSnapshots.Count, reducedSnapshots.Count);
 
+            // TODO: return with SyncedAt just as in WriteSummaries
             var writeResponse = await writer.WriteStatusesAsync(outputConfig, reducedSnapshots, cancellationToken);
 
             if (writeResponse.Status != ApiResponseStatus.Succeeded)
@@ -160,12 +195,65 @@ namespace CodeCaster.PVBridge.Logic
 
         public bool CanWriteDetails(DataProviderConfiguration outputConfig, DateTime day)
         {
-            return GetProvider<IOutputWriter>(outputConfig.NameOrType).CanWriteDetails(outputConfig, day);
+            return GetProviderByType<IOutputWriter>(outputConfig.Type).CanWriteDetails(outputConfig, day);
         }
 
         public bool CanWriteSummary(DataProviderConfiguration outputConfig, DateTime day)
         {
-            return GetProvider<IOutputWriter>(outputConfig.NameOrType).CanWriteSummary(outputConfig, day);
+            return GetProviderByType<IOutputWriter>(outputConfig.Type).CanWriteSummary(outputConfig, day);
+        }
+
+        private async Task<ApiResponse<DaySummary>> SyncDayAsync(DataProviderConfiguration inputConfig, DataProviderConfiguration outputConfig, DateTime day, IReadOnlyCollection<DaySummary>? inputSummaries, IReadOnlyCollection<DaySummary>? outputSummaries, CancellationToken stoppingToken)
+        {
+            DaySummary? inputSummary = null;
+            DaySummary? outputSummary = null;
+
+            // Cannot get summaries for today or yesterday up till like 06:00 the next day, with some slack.
+            var shouldHaveSummary = day.AddHours(33) < DateTime.Now;
+            if (shouldHaveSummary)
+            {
+                inputSummary = inputSummaries?.FirstOrDefault(s => s.Day == day.Date);
+                outputSummary = outputSummaries?.FirstOrDefault(s => s.Day == day.Date);
+
+                // When input and output are (pretty much) equal, don't sync this day
+                if (inputSummary?.DailyGeneration != null && outputSummary?.DailyGeneration != null
+                    && Math.Abs(inputSummary.DailyGeneration.Value - outputSummary.DailyGeneration.Value) < 0.1d)
+                {
+                    _logger.LogDebug("{day} is already synced ({wH} on both sides), skipping", day.LoggableDayName(), inputSummary.DailyGeneration.Value.FormatWattHour());
+
+                    return outputSummary;
+                }
+            }
+
+            // Otherwise, sync from `day`, which can be today at any time < now - main loop interval, or any earlier day.
+            var dayResult = await SyncPeriodDetailsAsync(inputConfig, outputConfig, day, stoppingToken);
+
+            if (!dayResult.IsSuccessful)
+            {
+                return new(dayResult);
+            }
+
+            var newestSnapshot = dayResult.Response.OrderByDescending(s => s.TimeTaken).First();
+
+            // When before today, report the summary (or last status), then continue.
+            if (inputSummary == null || inputSummary.DailyGeneration < newestSnapshot.DailyGeneration)
+            {
+                inputSummary = new DaySummary
+                {
+                    Day = newestSnapshot.TimeTaken.Date,
+                    DailyGeneration = newestSnapshot.DailyGeneration,
+                    SyncedAt = DateTime.Now,
+                };
+            }
+
+            var summaryResponse = await WriteDaySummaryAsync(outputConfig, inputSummary, outputSummary, stoppingToken);
+
+            if (!summaryResponse.IsSuccessful)
+            {
+                _logger.LogError("Failed to write summary for {day}: {status}", day.LoggableDayName(), summaryResponse.Status);
+            }
+
+            return summaryResponse;
         }
 
         private async Task<ApiResponse<IReadOnlyCollection<Snapshot>>> GetPeriodSnapshotsAsync(DataProviderConfiguration inputConfig, DateTime start, DateTime end, IInputProvider reader, string loggableDay, CancellationToken cancellationToken)
@@ -204,31 +292,46 @@ namespace CodeCaster.PVBridge.Logic
         /// <summary>
         /// When a day(except today)'s status is synced or is too old to sync live status, upload the summary.
         ///
-        /// PVOutput generates nightly summaries, but why not send it when we have it?
+        /// PVOutput generates nightly summaries (or does it?), but why not send it when we have it?
         /// </summary>
-        public async Task<ApiResponse> WriteDaySummaryAsync(DataProviderConfiguration outputConfig, DaySummary inputSummary, DaySummary? outputSummary, CancellationToken cancellationToken)
+        public async Task<ApiResponse<DaySummary>> WriteDaySummaryAsync(DataProviderConfiguration outputConfig, DaySummary inputSummary, DaySummary? outputSummary, CancellationToken cancellationToken)
         {
-            var writer = GetProvider<IOutputWriter>(outputConfig.Type);
+            var writer = GetProviderByType<IOutputWriter>(outputConfig.Type);
 
-            if (inputSummary.DailyGeneration > 0
-                && (outputSummary == null || outputSummary.DailyGeneration < inputSummary.DailyGeneration)
-                && inputSummary.Day != DateTime.Today)
+            if (inputSummary.DailyGeneration > 0 && outputSummary?.DailyGeneration > 0 
+                && Math.Abs(inputSummary.DailyGeneration.Value - outputSummary.DailyGeneration.Value) < 0.1d)
             {
-                _logger.LogInformation("Writing summary {summary} for {day} to {output}", inputSummary, inputSummary.Day.LoggableDayName(), outputConfig.NameOrType);
+                _logger.LogInformation("{summary} already known at {output} (synced at {syncedAt})", inputSummary, outputConfig.NameOrType, outputSummary.SyncedAt);
 
-                // TODO: actually batch
-                return await writer.WriteDaySummariesAsync(outputConfig, new[] { inputSummary }, cancellationToken);
+                return outputSummary;
             }
-            
-            _logger.LogInformation("Summary {summary} for {day} already known at {output}", inputSummary, inputSummary.Day.LoggableDayName(), outputConfig.NameOrType);
-            
-            return ApiResponse.Succeeded;
+
+            if (!writer.CanWriteSummary(outputConfig, inputSummary.Day))
+            {
+                _logger.LogWarning("Cannot write {summary} to {output}", inputSummary, outputConfig.NameOrType);
+
+                return outputSummary ?? new DaySummary
+                {
+                    Day = inputSummary.Day,
+                    DailyGeneration = inputSummary.DailyGeneration,
+                    SyncedAt = null,
+                };
+            }
+
+            _logger.LogInformation("Writing {summary} to {output}", inputSummary, outputConfig.NameOrType);
+
+            // TODO: actually batch, but we can only sync a summary after syncing an entire day, what if we're out of API calls and get shut down?
+            var summaries = await writer.WriteDaySummariesAsync(outputConfig, new[] { inputSummary }, cancellationToken);
+
+            return summaries.IsSuccessful
+                ? summaries.Response.First()
+                : new ApiResponse<DaySummary>(summaries);
         }
 
         /// <summary>
-        /// Gets a cached provider for a given input or output type (e.g. "GoodWe", "PVOutput").
+        /// Gets a cached provider for a given input or output type (e.g. "GoodWe", "PVOutput"), or throws.
         /// </summary>
-        private T GetProvider<T>(string type)
+        private T GetProviderByType<T>(string type)
             where T : IDataProvider
         {
             if (!_providers.TryGetValue(type, out var provider))

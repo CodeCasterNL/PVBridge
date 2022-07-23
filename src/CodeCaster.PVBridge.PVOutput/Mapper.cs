@@ -49,5 +49,14 @@ namespace CodeCaster.PVBridge.PVOutput
                 Temperature = (double?)status.Temperature
             };
         }
+
+        internal static DaySummary Map(IOutputPost summary)
+        {
+            return new()
+            {
+                Day = summary.OutputDate.Date,
+                DailyGeneration = summary.EnergyGenerated,
+            };
+        }
     }
 }

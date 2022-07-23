@@ -5,7 +5,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using CodeCaster.PVBridge.Configuration;
 using CodeCaster.PVBridge.Output;
-using CodeCaster.PVBridge.Utils;
 using Microsoft.Extensions.Logging;
 
 namespace CodeCaster.PVBridge.Logic
@@ -17,15 +16,10 @@ namespace CodeCaster.PVBridge.Logic
     {
         private static int _taskId;
 
-        /// <summary>
-        /// Tick every 2.something minutes (because we're bound to drift), sync every 5th minute (see _status._maxStatusAge).
-        /// </summary>
-        private readonly TimeSpan _mainLoopInterval = TimeSpan.FromSeconds(123);
-
         private readonly IInputToOutputWriter _ioWriter;
         private readonly DataProviderConfiguration _inputProvider;
         private readonly DataProviderConfiguration[] _outputProviders;
-
+        private readonly TimeSpan _maxStatusAge;
         private readonly InputToOutputLoopStatus _taskStatus;
 
         private readonly ILogger<IInputToOutputLoop> _logger;
@@ -51,9 +45,9 @@ namespace CodeCaster.PVBridge.Logic
             _outputProviders = outputProviders;
 
             // TODO: Math.Max(input.Resolution, output.Resolution)
-            var maxStatusAge = TimeSpan.FromMinutes(5);
+            _maxStatusAge = TimeSpan.FromMinutes(5);
 
-            _taskStatus = new InputToOutputLoopStatus(logger, Interlocked.Increment(ref _taskId), syncStart, maxStatusAge);
+            _taskStatus = new InputToOutputLoopStatus(logger, Interlocked.Increment(ref _taskId), syncStart, _maxStatusAge);
         }
 
         public void StatusSyncRequested(object? sender, EventArgs e)
@@ -82,15 +76,12 @@ namespace CodeCaster.PVBridge.Logic
             {
                 try
                 {
+                    // Set the next loop start already.
+                    var continueAt = DateTime.Now + _maxStatusAge;
+
                     // For each iteration, check if we were suspended or if we're behind on something. Then fix that.
                     switch (_taskStatus.UpdateState())
                     {
-                        // Stale data/API limit/error, retry later.
-                        case StateMachine.Wait:
-                            // Do nothing, enter next wait.
-
-                            break;
-
                         // We're up to date until now, sync the current status.
                         case StateMachine.SyncLiveStatus:
                             await SyncCurrentStatusAsync();
@@ -102,16 +93,21 @@ namespace CodeCaster.PVBridge.Logic
                             await SyncBacklogAsync();
 
                             break;
-
-                        default:
-                            throw new ArgumentException("This should not happen.");
                     }
 
-                    _logger.LogDebug("Sleeping for {mainLoopInterval}", _mainLoopInterval);
+                    // Update the state again, one above may have run.
+                    if (_taskStatus.UpdateState() == StateMachine.Wait)
+                    {
+                        continueAt = _taskStatus.GetWaitTimeAsync();
+                    }
+
+                    var waitTime = continueAt - DateTime.Now;
+
+                    _logger.LogDebug("Sleeping for {waitTime}", waitTime);
 
                     using var loopStoppingToken = CancellationTokenSource.CreateLinkedTokenSource(_stoppingToken, _loopWaitCancelToken.Token);
 
-                    await Task.Delay(_mainLoopInterval, loopStoppingToken.Token);
+                    await Task.Delay(waitTime, loopStoppingToken.Token);
                 }
                 catch (OperationCanceledException) when (_loopWaitCancelToken.IsCancellationRequested)
                 {
@@ -135,20 +131,24 @@ namespace CodeCaster.PVBridge.Logic
             // PVOutput's limit is 50 records, 150 for donation. GoodWe's limit appears to work with 40, not tested further.
             // Don't push it, just sync per 31 days.
 
-            const int daysPerMonth = 31;
-            var months = (int)Math.Ceiling((until - since).TotalDays / daysPerMonth);
+            const int daysPerBatch = 31;
+            var batchCount = (int)Math.Ceiling((until - since).TotalDays / daysPerBatch);
 
-            for (int m = 0; m < months; m++)
+            for (int i = 0; i < batchCount; i++)
             {
-                var monthStart = since.AddDays(m * daysPerMonth);
-                var monthEnd = new[] { DateTime.Now, since.AddDays(daysPerMonth) }.Min();
+                var batchNumber = i + 1;
+                var batchStart = since.AddDays(i * daysPerBatch);
+                var batchEnd = new[] { DateTime.Now, since.AddDays(daysPerBatch) }.Min();
 
-                _logger.LogDebug("Checking backlog from {monthStart} to {monthEnd} ({month}/{months})", monthStart, monthEnd, m + 1, months);
+                _logger.LogDebug("Checking backlog from {monthStart} to {monthEnd} ({batchNumber}/{batchCount})", batchStart, batchEnd, batchNumber, batchCount);
 
                 // Input summaries aren't available until after 03:00 ~ 04:00 (local) the next day.
-                var inputSummaries = await _ioWriter.GetSummariesAsync(_inputProvider, monthStart, monthEnd, _stoppingToken);
+                var inputSummaries = await _ioWriter.GetSummariesAsync(_inputProvider, batchStart, batchEnd, _stoppingToken);
 
                 _taskStatus.HandleApiResponse(inputSummaries);
+
+                // TODO: when any of the days is null, let caller get latest output(s) from that day as cheaply as possible and get the total from there.
+                // See #23.
 
                 // Consider an empty response with 200 OK succesful here, so we continue.
                 if (inputSummaries.Status is not ApiResponseStatus.Succeeded)
@@ -158,135 +158,54 @@ namespace CodeCaster.PVBridge.Logic
 
                 foreach (var outputConfig in _outputProviders)
                 {
-                    var syncMonthResult = await SyncPeriodAsync(outputConfig, monthStart, monthEnd, inputSummaries);
-
-                    if (!syncMonthResult.Any())
-                    {
-                        // No days were synced, continue to next output.
-                        // TODO: log
-                        continue;
-                    }
-
-                    foreach (var dayResult in syncMonthResult)
-                    {
-                        _taskStatus.HandleApiResponse(dayResult);
-
-                        if (dayResult.IsSuccessful)
-                        {
-                            // Report as synced, so we don't report the same day twice.
-                            _taskStatus.DataSynced(dayResult.Response.Day);
-                        }
-                        // Somehow we received a summary for today with 0 output, consider that stale.
-                        else if (dayResult.Status == ApiResponseStatus.Succeeded && dayResult.Response?.DailyGeneration.GetValueOrDefault() == 0 && dayResult.Response.Day.Date == DateTime.Today)
-                        {
-                            _taskStatus.StaleDataReceived();
-                        }
-                    }
+                    await SyncBatchAsync(inputSummaries, outputConfig, batchStart, batchEnd);
                 }
             }
         }
 
-        /// <summary>
-        /// TODO: the cyclomatic complexity is bonkers.
-        /// </summary>
-        private async Task<List<ApiResponse<DaySummary>>> SyncPeriodAsync(DataProviderConfiguration outputConfig, DateTime monthStart, DateTime monthEnd, ApiResponse<IReadOnlyCollection<DaySummary>> inputSummaries)
+        private async Task SyncBatchAsync(ApiResponse<IReadOnlyCollection<DaySummary>> inputSummaries, DataProviderConfiguration outputConfig, DateTime batchStart, DateTime batchEnd)
         {
-            var apiResponses = new List<ApiResponse<DaySummary>>();
-            
-            var outputSummaries = await _ioWriter.GetSummariesAsync(outputConfig, monthStart, monthEnd, _stoppingToken);
+            var outputSummaries = await _ioWriter.GetSummariesAsync(outputConfig, batchStart, batchEnd, _stoppingToken);
 
-            // "No data" (no summary for today or yesterday) gets returned as an error, so only check for rate limit here.
+            _taskStatus.HandleApiResponse(outputSummaries);
+
+            // Output summaries are optional. "No data" (no summary for today or yesterday) gets returned as BadRequest,
+            // so only check for rate limit or error here.
             if (outputSummaries.Status is ApiResponseStatus.RateLimited or ApiResponseStatus.Failed)
             {
-                apiResponses.Add(new(outputSummaries));
-
-                _logger.LogDebug("Failed response, synced {dayCount}: {days}", apiResponses.Count.SIfPlural("day"), apiResponses.Any() ? string.Join(", ", apiResponses) : "(null)");
-
-                return apiResponses;
-            }
-            
-            var days = (int)Math.Ceiling((monthEnd - monthStart).TotalDays) + 1;
-
-            _logger.LogDebug("Syncing backlog from {monthStart} to {monthEnd} ({days})", monthStart, monthEnd, days.SIfPlural("day"));
-
-            for (int d = 0; d < days; d++)
-            {
-                var dayResponse = await SyncDayAsync(outputConfig, monthStart, d, inputSummaries, outputSummaries);
-
-                apiResponses.Add(dayResponse);
+                // Try again later.
+                return;
             }
 
-            return apiResponses;
-        }
+            var periodResult = await _ioWriter.SyncPeriodAsync(_inputProvider, outputConfig, batchStart, batchEnd, inputSummaries.Response, outputSummaries.Response, _stoppingToken);
 
-        private async Task<ApiResponse<DaySummary>> SyncDayAsync(DataProviderConfiguration outputConfig, DateTime since, int daysToAdd, ApiResponse<IReadOnlyCollection<DaySummary>> inputSummaries, ApiResponse<IReadOnlyCollection<DaySummary>> outputSummaries)
-        {
-            var day = since.AddDays(daysToAdd);
-
-            // When we shut down and continue the next day, start syncing today at 00:00.
-            // Otherwise, it may be a backlog sync of just today; then sync since monthStart's time.
-            if (daysToAdd > 0 && day.Date == DateTime.Today)
+            if (!periodResult.Any())
             {
-                day = day.Date;
+                // No days were synced, continue to next output.
+                return;
             }
 
-            DaySummary? inputSummary = null;
-            DaySummary? outputSummary = null;
-
-            // When a day is 6 hours old, we'd expect a summary by then.
-            var shouldHaveSummary = day < DateTime.Now.AddHours(-(24 + 6));
-            if (shouldHaveSummary)
+            foreach (var dayResult in periodResult)
             {
-                inputSummary = inputSummaries.Response?.FirstOrDefault(s => s.Day == day.Date);
-                outputSummary = outputSummaries.Response?.FirstOrDefault(s => s.Day == day.Date);
+                // The first non-success status should be the last status.
+                _taskStatus.HandleApiResponse(dayResult);
 
-                // When input and output are (pretty much) equal, don't sync this day
-                if (inputSummary?.DailyGeneration != null && outputSummary?.DailyGeneration != null
-                    && Math.Abs(inputSummary.DailyGeneration.Value - outputSummary.DailyGeneration.Value) < 0.1d)
+                if (dayResult.IsSuccessful && dayResult.Response.SyncedAt.HasValue)
                 {
-                    _logger.LogDebug("{day} is already synced ({wH} on both sides), skipping", day.LoggableDayName(), inputSummary.DailyGeneration.Value.FormatWattHour());
+                    var day = DateOnly.FromDateTime(dayResult.Response.Day);
 
-                    return outputSummary;
+                    // Report as synced, so we don't report the same day twice.
+                    _taskStatus.DataSynced(day, dayResult.Response.SyncedAt.Value);
+
+                    continue;
+                }
+
+                // When running before dawn, there's no summary for today.
+                if (dayResult == periodResult.Last() && (dayResult.Response?.DailyGeneration).GetValueOrDefault() == 0)
+                {
+                    _taskStatus.StaleDataReceived(batchEnd);
                 }
             }
-
-            // Otherwise, sync from `day`, which can be today at any time < now - main loop interval, or any earlier day.
-            var dayResult = await _ioWriter.SyncPeriodDetailsAsync(_inputProvider, outputConfig, day, _stoppingToken);
-
-            if (!dayResult.IsSuccessful)
-            {
-                return new(dayResult);
-            }
-
-            var newestSnapshot = dayResult.Response.OrderByDescending(s => s.TimeTaken).First();
-
-            // TODO: this doesn't belong here
-            //if (day.Date == DateTime.Today)
-            //{
-            //    // We're up to date until now.
-            //    _lastStatus = newestSnapshot;
-            //}
-
-            // When before today, report the summary (or last status), then continue.
-            if (inputSummary == null || inputSummary.DailyGeneration < newestSnapshot.DailyGeneration)
-            {
-                inputSummary = new DaySummary
-                {
-                    Day = newestSnapshot.TimeTaken.Date,
-                    DailyGeneration = newestSnapshot.DailyGeneration,
-                };
-            }
-
-            var summaryResponse = await _ioWriter.WriteDaySummaryAsync(outputConfig, inputSummary, outputSummary, _stoppingToken);
-
-            if (!summaryResponse.IsSuccessful)
-            {
-                _logger.LogError("Failed to write summary for {day}: {status}", day.LoggableDayName(), summaryResponse.Status);
-
-                return new(summaryResponse);
-            }
-
-            return inputSummary;
         }
 
         private async Task SyncCurrentStatusAsync()
@@ -307,9 +226,9 @@ namespace CodeCaster.PVBridge.Logic
             // GoodWe can report a stale state for hours after shutdown.
             if (currentStatus.TimeTaken.Date < DateTime.Now.Date)
             {
-                _logger.LogDebug("Received old data ({timeTaken}), skipping", currentStatus.TimeTaken);
+                _logger.LogDebug("Received old data, skipping: {currentStatus}", currentStatus);
 
-                _taskStatus.StaleDataReceived();
+                _taskStatus.StaleDataReceived(currentStatus.TimeTaken);
 
                 return;
             }
@@ -317,18 +236,20 @@ namespace CodeCaster.PVBridge.Logic
             // We've seen that one before, the inverter is probably off.
             if (_lastStatus?.TimeTaken == currentStatus.TimeTaken)
             {
-                _logger.LogDebug("Status is equal to the previous status ({timeTaken}), skipping", currentStatus.TimeTaken);
+                _logger.LogDebug("Status is equal to the previous, skipping: {currentStatus}", currentStatus);
 
-                _taskStatus.StaleDataReceived();
+                _taskStatus.StaleDataReceived(currentStatus.TimeTaken);
 
                 return;
             }
 
-            if (currentStatus.ActualPower == 0)
+            if (currentStatus.ActualPower is null or 0)
             {
-                _logger.LogDebug("No actual power");
+                _logger.LogDebug("No actual power, might be either stale, dark or disconnected: {currentStatus}", currentStatus);
 
-                _taskStatus.StaleDataReceived();
+                _taskStatus.StaleDataReceived(currentStatus.TimeTaken);
+
+                return;
             }
 
             _lastStatus = currentStatus;
@@ -346,7 +267,8 @@ namespace CodeCaster.PVBridge.Logic
 
                 if (statusResponse.IsSuccessful)
                 {
-                    _taskStatus.DataSynced(currentStatus.TimeTaken);
+                    var day = DateOnly.FromDateTime(currentStatus.TimeTaken);
+                    _taskStatus.DataSynced(day, currentStatus.TimeTaken);
                 }
             }
         }

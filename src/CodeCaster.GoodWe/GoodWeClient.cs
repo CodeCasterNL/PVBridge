@@ -30,8 +30,7 @@ namespace CodeCaster.GoodWe
         private const string DateFormatSettingsEndpoint = "/api/v2/Common/GetDateFormatSettingList";
 
         private string _token = DefaultToken;
-        private readonly JsonSerializerOptions _responseLogJsonFormat = new() { WriteIndented = true };
-        private JsonSerializerOptions? _serializerOptions;
+        private JsonSerializerOptions _serializerOptions;
 
         // TODO: HttpClientFactory injection, and do we need to dispose/recreate on .NET 6 or not (DNS changes)?
         private readonly HttpClient _client;
@@ -44,6 +43,12 @@ namespace CodeCaster.GoodWe
                 throw new ArgumentException(nameof(accountConfiguration.Account) + " not configured.");
             if (string.IsNullOrWhiteSpace(accountConfiguration.Key))
                 throw new ArgumentException(nameof(accountConfiguration.Key) + " not configured.");
+
+            // Will be overwritten after login.
+            _serializerOptions = new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true,
+            };
 
             _logger = logger;
             _jsonDataDirectory = jsonDataDirectory;
@@ -74,8 +79,6 @@ namespace CodeCaster.GoodWe
             _logger.LogDebug("Getting statistics data with parameters {request}", JsonSerializer.SerializeToDocument(request).RootElement.ToString());
 
             var response = await TryRequest<ReportData>(() => _client.PostAsJsonAsync(endpoint, request, _serializerOptions, cancellationToken), cancellationToken);
-
-            await WriteJson("ReportData", response);
 
             // TODO: error handling
             return new GoodWeApiResponse<ReportData>(response);
@@ -128,8 +131,6 @@ namespace CodeCaster.GoodWe
 
             var response = await TryRequest<ChartData>(() => _client.PostAsJsonAsync(endpoint, request, cancellationToken), cancellationToken);
 
-            await WriteJson("StationHistoryData", response);
-
             // TODO: error handling
             return new GoodWeApiResponse<ChartData>(response);
         }
@@ -142,8 +143,6 @@ namespace CodeCaster.GoodWe
 
             var response = await TryRequest<PowerStationMonitorData>(() => _client.PostAsJsonAsync(endpoint, request, cancellationToken), cancellationToken);
 
-            await WriteJson("PowerStationMonitorData", response);
-
             // TODO: error handling
             return new GoodWeApiResponse<PowerStationMonitorData>(response);
         }
@@ -155,8 +154,6 @@ namespace CodeCaster.GoodWe
             var request = new PowerStationListRequest(pageIndex: 1);
 
             var response = await TryRequest<PlantData>(() => _client.PostAsJsonAsync(endpoint, request, cancellationToken), cancellationToken);
-
-            await WriteJson("GetInverterListAsync", response);
 
             // TODO: error handling
             return new GoodWeApiResponse<PlantData>(response);
@@ -171,7 +168,13 @@ namespace CodeCaster.GoodWe
                 try
                 {
                     var response = await call();
-                    var localResponseObject = await response.Content.ReadFromJsonAsync<ResponseBase<TResponse?>?>(_serializerOptions, cancellationToken: cancellationToken);
+
+                    var responseString = await response.Content.ReadAsStringAsync(cancellationToken: cancellationToken);
+
+                    await WriteJson(typeof(TResponse).Name, responseString);
+
+                    var localResponseObject = JsonSerializer.Deserialize<ResponseBase<TResponse?>>(responseString, _serializerOptions);
+
                     return localResponseObject;
                 }
                 catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -188,6 +191,7 @@ namespace CodeCaster.GoodWe
 #endif
 
                     _logger.LogError(ex, "TryRequest() failed: ");
+
                     return default;
                 }
             }
@@ -300,16 +304,16 @@ namespace CodeCaster.GoodWe
             {
                 throw new InvalidOperationException("Could not determine date format for user");
             }
-            
+
             var formatId = responseObject.Data.Selected.date_text;
 
             _logger.LogDebug("Translating date format {selectedDateFormat}", formatId);
-            
+
             if (!_dateFormats.TryGetValue(formatId, out var format))
             {
                 throw new ArgumentException("Could not translate date format " + formatId);
             }
-            
+
             _serializerOptions = new JsonSerializerOptions
             {
                 PropertyNameCaseInsensitive = true,
@@ -354,18 +358,16 @@ namespace CodeCaster.GoodWe
             return client;
         }
 
-        private Task WriteJson<T>(string filePrefix, T response)
+        private Task WriteJson(string filePrefix, string response)
         {
             if (string.IsNullOrWhiteSpace(_jsonDataDirectory))
             {
                 return Task.CompletedTask;
             }
 
-            var json = JsonSerializer.Serialize(response, _responseLogJsonFormat);
+            var jsonFileName = Path.Combine(_jsonDataDirectory, $"{filePrefix}-{DateTime.Now:yyyy-MM-dd_HH_mm_ss}.json");
 
-            var jsonFileName = Path.Combine(_jsonDataDirectory, $"{filePrefix}{DateTime.Now:yyyy-MM-dd_HH_mm_ss}.json");
-
-            return File.WriteAllTextAsync(jsonFileName, json);
+            return File.WriteAllTextAsync(jsonFileName, response);
         }
     }
 }

@@ -35,7 +35,7 @@ namespace CodeCaster.PVBridge
         /// <summary>
         /// Send a day summary to the output.
         /// </summary>
-        Task<ApiResponse> WriteDaySummaryAsync(DataProviderConfiguration outputConfig, DaySummary inputSummary, DaySummary? outputSummary, CancellationToken cancellationToken);
+        Task<ApiResponse<DaySummary>> WriteDaySummaryAsync(DataProviderConfiguration outputConfig, DaySummary inputSummary, DaySummary? outputSummary, CancellationToken cancellationToken);
 
         /// <summary>
         /// Returns whether snapshots for the given day can be written to the configured output.
@@ -46,5 +46,10 @@ namespace CodeCaster.PVBridge
         /// Returns whether a summary for the given day can be written to the configured output.
         /// </summary>
         bool CanWriteSummary(DataProviderConfiguration outputConfig, DateTime day);
+
+        /// <summary>
+        /// Synchronizes a period of time (can be minutes to days) from input to output. 
+        /// </summary>
+        Task<List<ApiResponse<DaySummary>>> SyncPeriodAsync(DataProviderConfiguration inputConfig, DataProviderConfiguration outputConfig, DateTime since, DateTime until, IReadOnlyCollection<DaySummary>? inputSummaries, IReadOnlyCollection<DaySummary>? outputSummaries, CancellationToken stoppingToken);
     }
 }

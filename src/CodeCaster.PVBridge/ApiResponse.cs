@@ -49,7 +49,7 @@ namespace CodeCaster.PVBridge
 
         public static ApiResponse<T> Failed(T? response = default) => new(response, ApiResponseStatus.Failed);
 
-        public ApiResponse(ApiResponse other)
+        public ApiResponse(ApiResponse other, T? response = default)
             : this(other.Status)
         {
             if (other.Status == ApiResponseStatus.RateLimited && other.RetryAfter == null)
@@ -58,6 +58,8 @@ namespace CodeCaster.PVBridge
             }
 
             RetryAfter = other.RetryAfter;
+
+            Response = response;
         }
 
         public ApiResponse(ApiResponseStatus status)

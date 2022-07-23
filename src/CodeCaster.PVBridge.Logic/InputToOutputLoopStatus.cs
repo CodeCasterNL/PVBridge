@@ -16,19 +16,22 @@ namespace CodeCaster.PVBridge.Logic
         private StateMachine _state;
 
         /// <summary>
-        /// Configurable on the provider (but ignored for now). See <see cref="PVBridge.Configuration.InputToOutputConfiguration.SyncStart"/>
+        /// The start datetime from when to start syncing. Configurable on the provider (but ignored for now). See <see cref="PVBridge.Configuration.InputToOutputConfiguration.SyncStart"/>
         /// </summary>
         private readonly DateTime _syncStart;
 
-        private readonly TimeSpan _maxStatusAge;
+        /// <summary>
+        /// Five minutes for now.
+        /// </summary>
+        private readonly TimeSpan _statusResolution;
 
-        private DateTime? _backlogStart;
+        private DateTime _backlogStart;
 
         private DateTime? _lastSuspend;
         private DateTime? _lastResume;
 
         /// <summary>
-        /// { day, DateTimeSynced }
+        /// Holds the _last sync_ datetime as value for the day indicated by the key.
         /// </summary>
         private readonly Dictionary<DateOnly, DateTime> _syncedDays = new();
 
@@ -51,27 +54,28 @@ namespace CodeCaster.PVBridge.Logic
             ILogger logger,
             int taskId,
             DateTime syncStart,
-            TimeSpan maxStatusAge
+            TimeSpan statusResolution
         )
         {
             _logger = logger;
             _taskId = taskId;
             _syncStart = syncStart;
-            _maxStatusAge = maxStatusAge;
+            _backlogStart = syncStart;
+            _statusResolution = statusResolution;
 
             _state = StateMachine.SyncBacklog;
         }
 
         /// <summary>
-        /// Callable when the state is SyncBacklog.
+        /// Callable when <see cref="UpdateState"/> returns <see cref="StateMachine.SyncBacklog"/>.
         /// </summary>
         public DateTime GetBacklogStart()
         {
             return _state switch
             {
-                StateMachine.SyncBacklog => _backlogStart!.Value,
+                StateMachine.SyncBacklog => _backlogStart,
 
-                StateMachine.SyncLiveStatus => _backlogStart!.Value,
+                StateMachine.SyncLiveStatus => _backlogStart,
 
                 StateMachine.Wait => throw new InvalidOperationException("Cannot calculate backlog age while waiting"),
 
@@ -80,38 +84,57 @@ namespace CodeCaster.PVBridge.Logic
         }
 
         /// <summary>
-        /// Backlog processing done for one day, or a live status was synced.
+        /// Callable when <see cref="UpdateState"/> returns <see cref="StateMachine.Wait"/>.
         /// </summary>
-        /// <param name="snapshotTaken">The last snapshot date of the day.</param>
-        public void DataSynced(DateTime snapshotTaken)
+        /// <returns></returns>
+        public DateTime GetWaitTimeAsync()
         {
-            var day = DateOnly.FromDateTime(snapshotTaken);
-
-            if (snapshotTaken.Date != DateTime.Today)
+            // Error/rate limit/stale data occurred, wait.
+            if (_continueAt.HasValue)
             {
-                _syncedDays[day] = DateTime.Now;
-
-                _state = StateMachine.SyncBacklog;
-
-                return;
+                return _continueAt.Value;
             }
 
-            _syncedDays[day] = snapshotTaken;
+            // Today not synced yet? Sync now!
+            if (!_syncedDays.TryGetValue(DateOnly.FromDateTime(DateTime.Today), out var lastDaySnapshot))
+            {
+                return DateTime.Now;
+            }
 
-            if (snapshotTaken > DateTime.Now - _maxStatusAge)
+            // 13:57 -> 14:00.
+            return GetMaxBacklogAge(lastDaySnapshot, (int)Math.Ceiling(_statusResolution.TotalMinutes)) + _statusResolution;
+        }
+
+        /// <summary>
+        /// Backlog processing done for one day, or a live status was synced.
+        /// </summary>
+        /// <param name="day">The day.</param>
+        /// <param name="snapshotTaken">The last snapshot date of the day.</param>
+        public void DataSynced(DateOnly day, DateTime snapshotTaken)
+        {
+            _syncedDays[day] = snapshotTaken;
+            
+            var today = DateOnly.FromDateTime(DateTime.Today);
+            
+            if (day != today)
+            {
+                return;
+            }
+            
+            if (snapshotTaken > DateTime.Now - _statusResolution)
             {
                 _staleDataReceived = 0;
 
                 return;
             }
 
-            StaleDataReceived();
+            StaleDataReceived(snapshotTaken);
         }
 
         /// <summary>
         /// Call(ed) when a live status or backlog sync for today yielded old records.
         /// </summary>
-        public void StaleDataReceived()
+        public void StaleDataReceived(DateTime? day)
         {
             _staleDataReceived++;
 
@@ -119,7 +142,7 @@ namespace CodeCaster.PVBridge.Logic
 
             var minutesToWait = 10 * _staleDataReceived;
 
-            _logger.LogInformation("Stale data received, waiting {minutes}.", minutesToWait.SIfPlural("minute"));
+            _logger.LogInformation("Stale data received for {day}, waiting {minutes}.", day?.LoggableDayName() ?? "", minutesToWait.SIfPlural("minute"));
 
             var retryAt = DateTime.Now.AddMinutes(minutesToWait);
 
@@ -150,7 +173,7 @@ namespace CodeCaster.PVBridge.Logic
             {
                 // When we boot up, don't retry immediately, because the Internet seems to be unreachable when we start too soon.
                 // TODO: fix? We do take a dependency on TcpIp...
-                _continueAt = DateTime.Now.Add(_maxStatusAge);
+                _continueAt = DateTime.Now.Add(_statusResolution);
             }
 
             _logger.LogDebug("Resuming: stale: {staleData}, errors: {errors}, continue at: {continueAt}", _staleDataReceived, _successiveErrors, _continueAt);
@@ -158,13 +181,24 @@ namespace CodeCaster.PVBridge.Logic
 
         public StateMachine UpdateState()
         {
+            _logger.LogTrace("Updating old task status: {taskStatus}", this.ToString());
+            
+            UpdateStateImpl();
+            
             _logger.LogDebug("Task status: {taskStatus}", this.ToString());
 
+            return _state;
+        }
+
+        private void UpdateStateImpl()
+        {
             if (_lastSuspend.HasValue && !_lastResume.HasValue)
             {
                 _logger.LogDebug("Task {taskId} suspended at {lastSuspend}, not resuming", _taskId, _lastSuspend);
 
-                return _state = StateMachine.Wait;
+                _state = StateMachine.Wait;
+                
+                return;
             }
 
             // Rate limited, error or stale statuses received by a previous call.
@@ -180,7 +214,9 @@ namespace CodeCaster.PVBridge.Logic
                 {
                     _logger.LogDebug("Waiting for next attempt until {continueAt}", _continueAt);
 
-                    return _state = StateMachine.Wait;
+                     _state = StateMachine.Wait;
+
+                     return;
                 }
             }
 
@@ -193,66 +229,79 @@ namespace CodeCaster.PVBridge.Logic
                 _lastResume = null;
             }
 
-            _backlogStart = CalculateBacklogStart();
+            UpdateBacklogStart();
 
             // Last sync was earlier than today's last supposed status age.
             var now = DateTime.Now;
-
-            // TODO: 5 for now, what if we want sub-minute data intervals?
-            var intervalMinutes = (int)Math.Ceiling(_maxStatusAge.TotalMinutes);
-
-            var remainder = now.Minute % -intervalMinutes;
-
-            // Can become negative, so add later.
-            var minutes = now.Minute - (remainder == 0 ? intervalMinutes : remainder);
-
-            var maxBacklogAge = new DateTime(now.Year, now.Month, now.Day, now.Hour, 0, second: 0).AddMinutes(minutes);
+            
+            var intervalMinutes = (int)Math.Ceiling(_statusResolution.TotalMinutes); 
+            
+            var maxBacklogAge = GetMaxBacklogAge(now, intervalMinutes);
 
             // Give them a grace period if we missed one. So it's okay to report a missing :50 at :51, or so we hope.
-            if (_backlogStart.Value < maxBacklogAge.AddMinutes(-intervalMinutes))
+            // Not reporting on the dot can show rounding differences on the 5-minute marks between GoodWe and PVOutput, totals and general shape of graph should match.
+            if (_backlogStart < maxBacklogAge.AddMinutes(-intervalMinutes))
             {
                 _logger.LogDebug("Last sync at {backlogStart} (maxAge: {maxAge}), syncing backlog", _backlogStart, maxBacklogAge);
 
-                return _state = StateMachine.SyncBacklog;
+                _state = StateMachine.SyncBacklog;
+                
+                return;
             }
 
             // If _backlogStart = 16:40, and it's 16:41, wait until :45.
-            // But if _backlogStart = 16:37 and it's 16:40, sync now.
-            if (_backlogStart.Value >= maxBacklogAge && now < maxBacklogAge.AddMinutes(intervalMinutes))
+            // But if _backlogStart = 16:37 and it's 16:40, sync now, to try and hit the 5-minute mark.
+            var continueSync = maxBacklogAge.AddMinutes(intervalMinutes);
+            if (_backlogStart >= maxBacklogAge && now < continueSync)
             {
-                _logger.LogDebug("Last sync at {backlogStart}, waiting until {maxStatusAge}", _backlogStart, maxBacklogAge.AddMinutes(intervalMinutes));
+                _logger.LogDebug("Last sync at {backlogStart}, waiting until {maxStatusAge}", _backlogStart, continueSync);
+
+                _continueAt = continueSync;
                 
-                return _state = StateMachine.Wait;
+                _state = StateMachine.Wait;
+
+                return;
             }
             
             _logger.LogDebug("Last sync at {backlogStart} (max: {maxAge}), syncing live status", _backlogStart, maxBacklogAge);
 
-            return _state = StateMachine.SyncLiveStatus;
+            _state = StateMachine.SyncLiveStatus;
         }
 
-        private DateTime CalculateBacklogStart()
+        private static DateTime GetMaxBacklogAge(DateTime now, int intervalMinutes)
         {
-            var backlogStart = _syncStart;
+            var remainder = now.Minute % -intervalMinutes;
 
-            var days = (int)Math.Ceiling((DateTime.Now - backlogStart).TotalDays) + 1;
+            // Can become negative, so add later.
+            // TODO: what if we want sub-minute data intervals?
+            var minutes = now.Minute - (remainder == 0 ? intervalMinutes : remainder);
+
+            return new DateTime(now.Year, now.Month, now.Day, now.Hour, 0, second: 0).AddMinutes(minutes);
+        }
+
+        private void UpdateBacklogStart()
+        {
+            var backlogStart = new[] { _backlogStart, _syncStart }.Max();
+
+            var days = backlogStart.GetDaysUntil(DateTime.Now).ToList();
 
             // Loop over all days to sync, oldest first. The first one that doesn't have a cache hit, gets returned. 
             // Some special cases for today and yesterday.
 
-            for (int i = 0; i < days; i++)
+            foreach (var dayTime in days)
             {
-                var dayTime = backlogStart.AddDays(i);
-
                 var day = DateOnly.FromDateTime(dayTime);
 
                 if (!_syncedDays.TryGetValue(day, out var lastDaySnapshot))
                 {
                     _logger.LogTrace("Day {day} missing, starting sync at {syncDateTime}", day.LoggableDayName(), dayTime);
 
-                    return (_backlogStart = dayTime).Value;
+                    _backlogStart = dayTime;
+
+                    return;
                 }
 
-                _logger.LogDebug("Day {day} synced at {syncDateTime}", day.LoggableDayName(), lastDaySnapshot);
+                _logger.LogTrace("Day {day} synced at {syncDateTime}", day.LoggableDayName(), lastDaySnapshot);
 
                 // Assume a later sync fully synced that day.
                 if (lastDaySnapshot.Date > dayTime.Date)
@@ -261,14 +310,16 @@ namespace CodeCaster.PVBridge.Logic
                 }
 
                 // When a day (including today) was synced on itself, sync it again, so we can complete yesterday's data when resuming.
-                _logger.LogDebug("{day} was last synced on {backlogSync}, continuing there", dayTime.LoggableDayName(), lastDaySnapshot);
+                _logger.LogTrace("{day} was last synced on {backlogSync}, continuing there", dayTime.LoggableDayName(), lastDaySnapshot);
 
-                return (_backlogStart = lastDaySnapshot).Value;
+                _backlogStart = lastDaySnapshot;
+
+                return;
             }
 
             // Should not happen
             // TODO: test that
-            throw new InvalidOperationException($"Checking {days.SIfPlural("day")} since {backlogStart:O} did not yield a sync start time");
+            throw new InvalidOperationException($"Checking {days.Count.SIfPlural("day")} since {backlogStart:O} did not yield a sync start time");
         }
 
         // TODO: pass config
@@ -316,7 +367,7 @@ namespace CodeCaster.PVBridge.Logic
 
             return $"Id: {_taskId}, " +
                    $"State: {_state}, " +
-                   $"BacklogStart: {_backlogStart.ToIsoStringOrDefault("never")}, " +
+                   $"BacklogStart: {_backlogStart:O}, " +
                    $"ContinueAt: {_continueAt.ToIsoStringOrDefault("never")}, " +
                    $"LastSuspend: {_lastSuspend.ToIsoStringOrDefault("never")}, " +
                    $"LastResume: {_lastResume.ToIsoStringOrDefault("never")}, " +

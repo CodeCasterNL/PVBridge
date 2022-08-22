@@ -32,8 +32,9 @@
             {% assign sorted_pages = site.pages | sort:"order" %}
             |
             {% for node in sorted_pages %}
-                {% if node.title %}
-                    <span><a href=".{{node.url}}" style="color: inherit" title="{{node.title}}">{{node.title}}</a></span> |
+                {% assign title = node.menuTitle | default: node.title %}
+                {% if title %}
+                    <span><a href=".{{node.url}}" style="color: inherit" title="{{title}}">{{title}}</a></span> |
                 {% endif %}
             {% endfor %}
         </p>

@@ -10,6 +10,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Content Include="$(MSBuildThisFileDirectory)docs\changelog.md" />
+    <Content Include="$(MSBuildThisFileDirectory)docs\commandline.md" />
     <Content Include="$(MSBuildThisFileDirectory)docs\configuration.md" />
     <Content Include="$(MSBuildThisFileDirectory)docs\downloads.md" />
     <Content Include="$(MSBuildThisFileDirectory)docs\roadmap.md" />

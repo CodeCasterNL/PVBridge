@@ -1,6 +1,6 @@
 ---
 title: Downloads
-order: 5
+order: 50
 ---
 ## Latest release
 Download the latest release on the [GitHub Releases page](https://github.com/CodeCasterNL/PVBridge/releases).

@@ -1,20 +1,20 @@
 ---
 title: Changelog
-order: 4
+order: 40
 ---
 ## Changelog
 
-### [v0.7.0](https://github.com/CodeCasterNL/PVBridge/releases/tag/v0.7.0)
-Revert the past two changes, fix:
+### [v0.7.0] (upcoming)
+Branched from 0.6.2, so no inverter selection yet, fixed:
 
-* Wait until the next interval.
-* Backlog processing doesn't hang on empty/0 days.
-* ...
+* Command-line sync further back than 14 days
+* Loop logic rewritten, should now wait until the next interval and not fall back to backlog sync.
+* Log JSON before deserializing, not after
 
-### [v0.6.4](https://github.com/CodeCasterNL/PVBridge/releases/tag/v0.6.4)
+### v0.6.4 (removed)
 Fix GoodWe inverter selection, or so we hope.
 
-### [v0.6.3](https://github.com/CodeCasterNL/PVBridge/releases/tag/v0.6.3)
+### v0.6.3 (removed)
 Save GoodWe plant installation date, looks like the moment the first inverter was turned on.  
 Then use that date to not sync before then, instead of always 14 days back.
 

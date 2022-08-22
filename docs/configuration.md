@@ -1,6 +1,6 @@
 ---
 title: Configuration
-order: 2
+order: 30
 ---
 ## Configuring the service
 When the setup has installed the service, or when you run the "PVBridge Configuration UI" from the start menu, you can configure between which accounts the service synchronizes data.

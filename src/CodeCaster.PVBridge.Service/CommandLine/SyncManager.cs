@@ -9,7 +9,7 @@ namespace CodeCaster.PVBridge.Service.CommandLine
 {
     internal class SyncManager
     {
-        internal async Task SyncAsync(IInputToOutputWriter ioWriter, DataProviderConfiguration inputConfig, DataProviderConfiguration outputConfig, DateTime? since, DateTime? until, int sleep, CancellationToken cancellationToken)
+        internal async Task SyncAsync(IInputToOutputWriter ioWriter, DataProviderConfiguration inputConfig, DataProviderConfiguration outputConfig, DateTime? since, DateTime? until, int snapshotDays, int sleep, CancellationToken cancellationToken)
         {
             if (since == null)
             {
@@ -36,6 +36,19 @@ namespace CodeCaster.PVBridge.Service.CommandLine
                 return;
             }
 
+
+            if (snapshotDays <= 0)
+            {
+                snapshotDays = 14;
+            }
+            
+            if (sleep <= 0)
+            {
+                sleep = 5;
+            }
+
+            // TODO: summaryDays 90 (?) for PVOutput
+
             var inputSummaries = await ioWriter.GetSummariesAsync(inputConfig, since.Value, until.Value, cancellationToken);
             if (inputSummaries.Status != ApiResponseStatus.Succeeded || inputSummaries.Response == null)
             {
@@ -56,13 +69,19 @@ namespace CodeCaster.PVBridge.Service.CommandLine
 
             foreach (var inputSummary in inputSummaries.Response)
             {
-                if (!ioWriter.CanWriteDetails(outputConfig, inputSummary.Day))
+                bool dayTooOld = (now.Date - inputSummary.Day).TotalDays > snapshotDays;
+                if (dayTooOld && !ioWriter.CanWriteDetails(outputConfig, inputSummary.Day))
                 {
                     Console.WriteLine($"Can't write snapshots for {inputSummary.Day.LoggableDayName()} to {outputConfig.NameOrType}");
                 }
                 else
                 {
-                    var response = await ioWriter.SyncPeriodDetailsAsync(inputConfig, outputConfig, inputSummary.Day, cancellationToken);
+                    if (dayTooOld)
+                    {
+                        Console.WriteLine($"Data too old for {inputSummary.Day.LoggableDayName()} to {outputConfig.NameOrType}, still trying...");
+                    }
+
+                    var response = await ioWriter.SyncPeriodDetailsAsync(inputConfig, outputConfig, inputSummary.Day, force: !dayTooOld, cancellationToken);
 
                     if (response.Status != ApiResponseStatus.Succeeded)
                     {

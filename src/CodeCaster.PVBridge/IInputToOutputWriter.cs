@@ -30,7 +30,8 @@ namespace CodeCaster.PVBridge
         /// <summary>
         /// Sync a range of statuses, returning those who were sent and successfully received.
         /// </summary>
-        Task<ApiResponse<IReadOnlyCollection<Snapshot>>> SyncPeriodDetailsAsync(DataProviderConfiguration inputConfig, DataProviderConfiguration outputConfig, DateTime day, CancellationToken cancellationToken);
+        /// <param name="force">When true, attempts to sync the day anyway even when it's too old</param>
+        Task<ApiResponse<IReadOnlyCollection<Snapshot>>> SyncPeriodDetailsAsync(DataProviderConfiguration inputConfig, DataProviderConfiguration outputConfig, DateTime day, bool force, CancellationToken cancellationToken);
 
         /// <summary>
         /// Send a day summary to the output.

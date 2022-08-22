@@ -125,7 +125,7 @@ namespace CodeCaster.PVBridge.Logic
         /// Get snapshot data for a period, usually 24 hours or today up to now.
         /// </summary>
 
-        public async Task<ApiResponse<IReadOnlyCollection<Snapshot>>> SyncPeriodDetailsAsync(DataProviderConfiguration inputConfig, DataProviderConfiguration outputConfig, DateTime day, CancellationToken cancellationToken)
+        public async Task<ApiResponse<IReadOnlyCollection<Snapshot>>> SyncPeriodDetailsAsync(DataProviderConfiguration inputConfig, DataProviderConfiguration outputConfig, DateTime day, bool force, CancellationToken cancellationToken)
         {
             var writer = GetProviderByType<IOutputWriter>(outputConfig.Type);
 
@@ -133,9 +133,12 @@ namespace CodeCaster.PVBridge.Logic
 
             if (!CanWriteDetails(outputConfig, day))
             {
-                _logger.LogWarning("Provider {output} can't write on {loggableDay}", outputConfig.NameOrType, loggableDay);
+                _logger.LogWarning("Provider {output} can't write on {loggableDay}, {action}", outputConfig.NameOrType, loggableDay, force ? "forcing" : "skipping");
 
-                return new ApiResponse<IReadOnlyCollection<Snapshot>>(new List<Snapshot>());
+                if (!force)
+                {
+                    return new ApiResponse<IReadOnlyCollection<Snapshot>>(new List<Snapshot>());
+                }
             }
 
             var reader = GetProviderByType<IInputProvider>(inputConfig.Type);
@@ -226,7 +229,7 @@ namespace CodeCaster.PVBridge.Logic
             }
 
             // Otherwise, sync from `day`, which can be today at any time < now - main loop interval, or any earlier day.
-            var dayResult = await SyncPeriodDetailsAsync(inputConfig, outputConfig, day, stoppingToken);
+            var dayResult = await SyncPeriodDetailsAsync(inputConfig, outputConfig, day, force: false, stoppingToken);
 
             if (!dayResult.IsSuccessful)
             {
@@ -298,7 +301,7 @@ namespace CodeCaster.PVBridge.Logic
         {
             var writer = GetProviderByType<IOutputWriter>(outputConfig.Type);
 
-            if (inputSummary.DailyGeneration > 0 && outputSummary?.DailyGeneration > 0 
+            if (inputSummary.DailyGeneration > 0 && outputSummary?.DailyGeneration > 0
                 && Math.Abs(inputSummary.DailyGeneration.Value - outputSummary.DailyGeneration.Value) < 0.1d)
             {
                 _logger.LogInformation("{summary} already known at {output} (synced at {syncedAt})", inputSummary, outputConfig.NameOrType, outputSummary.SyncedAt);

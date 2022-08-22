@@ -40,7 +40,7 @@ namespace CodeCaster.PVBridge.Service
                 // PVbridge.exe service <install --path xxx |uninstall|run|start>
                 rootCommand.AddCommand(GetServiceCommand(host));
 
-                // PVbridge.exe sync [yyyy-MM-dd [yyyy-MM-dd]] [--input xxx] [--output xxx]
+                // PVbridge.exe sync [yyyy-MM-dd [yyyy-MM-dd]] [--input xxx] [--output xxx] [--snapshotDays 90] [--sleep 3]
                 rootCommand.AddCommand(GetSyncCommand(host));
 
                 await rootCommand.InvokeAsync(args);
@@ -70,23 +70,36 @@ namespace CodeCaster.PVBridge.Service
                 Arity = ArgumentArity.ZeroOrOne
             };
 
-            var untilOption = new Argument<DateTime?>("until", "The inclusive end date to sync. Format: yyyy-MM-dd.")
+            var untilArgument = new Argument<DateTime?>("until", "The inclusive end date to sync. Format: yyyy-MM-dd.")
             {
                 Arity = ArgumentArity.ZeroOrOne
             };
 
-            var inputOption = new Option<string>(new[] { "--input", "-i" }, "TODO: require when multiple found in config")
+            // TODO: require when multiple found in config
+            var inputOption = new Option<string>(new[] { "--input", "-i" }, "Select input by name.")
             {
                 IsRequired = false
             };
 
-            var outputOption = new Option<string>(new[] { "--output", "-o" }, "TODO: require when multiple found in config")
+            // TODO: require when multiple found in config
+            var outputOption = new Option<string>(new[] { "--output", "-o" }, "Select output by name.")
             {
                 IsRequired = false
+            };
+
+            var snapshotDaysOption = new Option<int>(
+                new[] { "--snapshot-days", "-d" },
+                () => 14,
+                "Number of days to sync snapshots back. When syncing further back, only summaries will be written. Defaults to 14.")
+            {
+                IsRequired = false,
             };
 
             // TODO: validate sane values.
-            var sleepOption = new Option<int>(new[] { "--sleep", "-s" }, () => 5, "Seconds to wait between each day, defaults to 5")
+            var sleepOption = new Option<int>(
+                new[] { "--sleep", "-s" },
+                () => 5,
+                "Seconds to wait between each day, defaults to 5")
             {
                 IsRequired = false
             };
@@ -94,13 +107,14 @@ namespace CodeCaster.PVBridge.Service
             var syncCommand = new Command("sync", "Without further arguments, syncs the current status. When one date is passed that day is synced, when two the range between them.")
             {
                 sinceArgument,
-                untilOption,
+                untilArgument,
                 inputOption,
+                snapshotDaysOption,
                 outputOption,
                 sleepOption,
             };
 
-            syncCommand.SetHandler(async (DateTime? since, DateTime? until, string? input, string? output, int sleep, CancellationToken token) =>
+            syncCommand.SetHandler(async (DateTime? since, DateTime? until, string? input, string? output, int snapshotDays, int sleep, CancellationToken token) =>
             {
                 // Sync the current status if since and until are null.
                 if (since == null && until.HasValue)
@@ -131,9 +145,15 @@ namespace CodeCaster.PVBridge.Service
 
                 var writer = host.Services.GetRequiredService<IInputToOutputWriter>();
 
-                await new SyncManager().SyncAsync(writer, inputConfig, outputConfig, since, until, sleep, token);
+                await new SyncManager().SyncAsync(writer, inputConfig, outputConfig, since, until, snapshotDays, sleep, token);
             },
-            sinceArgument, untilOption, inputOption, outputOption, sleepOption);
+                sinceArgument,
+                untilArgument,
+                inputOption,
+                outputOption,
+                snapshotDaysOption,
+                sleepOption
+            );
 
             return syncCommand;
         }

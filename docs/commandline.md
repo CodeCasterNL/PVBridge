@@ -1,5 +1,5 @@
 ---
-menuTitle: Commandline
+menuTitle: Command line
 title: Commandline Sync
 order: 20
 ---
@@ -15,7 +15,7 @@ From this directory, you can run the executable on the command line, passing arg
 ```bash
 > PVBridge.exe sync 2022-08-22
 ```
-Or whatever date you want to sync from (until now), in `yyyy-MM-dd` format. 
+Or whatever day you want to sync , in `yyyy-MM-dd` format. 
 
 You can also provide a period to sync by passing a second date:
 

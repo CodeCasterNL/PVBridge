@@ -1,5 +1,6 @@
 using System;
 using System.CommandLine;
+using System.CommandLine.Invocation;
 using System.Globalization;
 using System.IO;
 using System.Threading;
@@ -13,6 +14,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Microsoft.VisualBasic.FileIO;
 
 namespace CodeCaster.PVBridge.Service
 {
@@ -114,7 +116,7 @@ namespace CodeCaster.PVBridge.Service
                 sleepOption,
             };
 
-            syncCommand.SetHandler(async (DateTime? since, DateTime? until, string? input, string? output, int snapshotDays, int sleep, CancellationToken token) =>
+            syncCommand.SetHandler(async (since, until, input, output, snapshotDays, sleep) =>
             {
                 // Sync the current status if since and until are null.
                 if (since == null && until.HasValue)
@@ -145,7 +147,7 @@ namespace CodeCaster.PVBridge.Service
 
                 var writer = host.Services.GetRequiredService<IInputToOutputWriter>();
 
-                await new SyncManager().SyncAsync(writer, inputConfig, outputConfig, since, until, snapshotDays, sleep, token);
+                await new SyncManager().SyncAsync(writer, inputConfig, outputConfig, since, until, snapshotDays, sleep, CancellationToken.None);
             },
                 sinceArgument,
                 untilArgument,
@@ -182,9 +184,9 @@ namespace CodeCaster.PVBridge.Service
 
                 command.AddOption(idleOption);
 
-                command.SetHandler(async (CancellationToken token) =>
+                command.SetHandler(async context =>
                 {
-                    await host.RunAsync(token);
+                    await host.RunAsync(context.GetCancellationToken());
                 });
 
                 return command;
@@ -202,9 +204,9 @@ namespace CodeCaster.PVBridge.Service
 
                 installCommand.AddOption(pathOption);
 
-                installCommand.SetHandler(async (string path, CancellationToken token) =>
+                installCommand.SetHandler(async path =>
                 {
-                    await serviceManager.InstallServiceAsync(host.Services, path, token);
+                    await serviceManager.InstallServiceAsync(host.Services, path, CancellationToken.None);
                 }, pathOption);
 
                 return installCommand;
@@ -213,9 +215,10 @@ namespace CodeCaster.PVBridge.Service
             Command GetUninstallCommand()
             {
                 var uninstallCommand = new Command("uninstall", "Uninstall the service");
-                uninstallCommand.SetHandler(async (CancellationToken token) =>
+                
+                uninstallCommand.SetHandler(async context =>
                 {
-                    await serviceManager.UninstallServiceAsync(host.Services, token);
+                    await serviceManager.UninstallServiceAsync(host.Services, context.GetCancellationToken());
                 });
 
                 return uninstallCommand;

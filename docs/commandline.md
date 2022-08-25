@@ -1,6 +1,6 @@
 ---
 menuTitle: Command line
-title: Commandline Sync
+title: Command line Sync
 order: 20
 ---
 ## Syncing from the command line

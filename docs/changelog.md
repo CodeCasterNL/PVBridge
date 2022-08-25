@@ -4,12 +4,13 @@ order: 40
 ---
 ## Changelog
 
-### [v0.7.0] (upcoming)
+### [v0.7.0](https://github.com/CodeCasterNL/PVBridge/releases/tag/v0.7.0)
 Branched from 0.6.2, so no inverter selection yet, fixed:
 
-* Command-line sync further back than 14 days
+* Command-line sync further back than 14 days (`--snapshot-days 90`, see [Command line docs](https://codecasternl.github.io/PVBridge/commandline.html)).
 * Loop logic rewritten, should now wait until the next interval and not fall back to backlog sync.
-* Log JSON before deserializing, not after
+* Log JSON before deserializing, not after.
+* Nullability issues in GoodWe response.
 
 ### v0.6.4 (removed)
 Fix GoodWe inverter selection, or so we hope.

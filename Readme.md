@@ -16,10 +16,16 @@ We can update live data (realtime power generation, temperature and so on) up to
 
 Other inputs and outputs (other inverter APIs, CSV), aggregations ([#26](https://github.com/CodeCasterNL/PVBridge/issues/26)), aggregations to CSV, Excel to CSV and [other features and improvements](https://github.com/CodeCasterNL/PVBridge/issues) are (far) future plans, help is more than welcome! See [Contributing.md](Contributing.md).
 
+# Installation
+Download the most recent version "PVBridge-{version}.msi" under "Releases" on [the GitHub page](https://github.com/CodeCasterNL/PVBridge). For older versions, check https://github.com/CodeCasterNL/PVBridge/releases.
+
+# Uninstallation / updating
+Unfortunately, the uninstaller is broken. Will fix before v1.0.
+
+For now, manually uninstall before update: see the [downloads page on the documentation site](https://codecasternl.github.io/PVBridge/downloads.html).
+
 # [Documentation](https://codecasternl.github.io/PVBridge/)
 For documentation on installing and setting up, see the [documentation site](https://codecasternl.github.io/PVBridge/).
-
-* TODO: document setting it up ([#13](https://github.com/CodeCasterNL/PVBridge/issues/13)).
 
 # Status
 Current status: as-is development-prerelease. This means that it might work on your computer, but if it doesn't, please [open an issue](https://github.com/CodeCasterNL/PVBridge/issues/new) with as much relevant details as possible and help me figure it out.
@@ -35,9 +41,6 @@ In order to install this program, you need:
 * An API key and System ID for [PVOutput.org](https://pvoutput.org/account.jsp).
 * Administrative permissions to install the PVBridge Windows Service.
 * The 64-bit version of the .NET Desktop Runtime, 6.0 or higher (should come with the installer).
-
-# Installation
-Download the most recent version "PVBridge.{version}.msi" under "Releases" on [the GitHub page](https://github.com/CodeCasterNL/PVBridge). For older versions, check https://github.com/CodeCasterNL/PVBridge/releases.
 
 # Supported behavior
 This is what the app should be able to do in its current state:

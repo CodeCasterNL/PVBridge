@@ -49,7 +49,13 @@ namespace CodeCaster.PVBridge.GoodWe
         private async Task<T?> DeserializeFileAsync<T>(DataProviderConfiguration configuration, string key, CancellationToken cancellationToken)
         {
             var path = configuration.Options[key];
-            Logger.LogDebug($"About to deserialize key '{key}' file '{path}' into a '{typeof(T).Name}'");
+            Logger.LogDebug("About to deserialize key '{key}' file '{path}' into a '{type}'", key, path, typeof(T).Name);
+
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                throw new ArgumentException($"Configuration option for key '{key}' missing", nameof(configuration));
+            }
+
             var json = await File.ReadAllTextAsync(path, cancellationToken);
             return System.Text.Json.JsonSerializer.Deserialize<T>(json);
         }

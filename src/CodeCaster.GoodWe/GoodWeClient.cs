@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
-using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -269,7 +268,7 @@ namespace CodeCaster.GoodWe
             var token = responseObject.Data;
             _token = JsonSerializer.Serialize(token);
 
-            if (string.IsNullOrWhiteSpace(token.token) || string.IsNullOrWhiteSpace(token.uid))
+            if (string.IsNullOrWhiteSpace(token?.token) || string.IsNullOrWhiteSpace(token.uid))
             {
                 _logger.LogError("Token.token or UID are empty");
 
@@ -300,12 +299,12 @@ namespace CodeCaster.GoodWe
             var dateSettingsResponse = await _client.PostAsync(endpoint, null);
             var responseObject = await dateSettingsResponse.Content.ReadFromJsonAsync<ResponseBase<DateFormatSettingsList>>();
 
-            if (responseObject == null || responseObject.HasError || responseObject.Data == null || responseObject.Data.Selected == null)
+            if (responseObject == null || responseObject.HasError == true || responseObject.Data?.Selected == null)
             {
                 throw new InvalidOperationException("Could not determine date format for user");
             }
 
-            var formatId = responseObject.Data.Selected.date_text;
+            var formatId = responseObject.Data.Selected.date_text ?? throw new ArgumentException("User has no configured date_text");
 
             _logger.LogDebug("Translating date format {selectedDateFormat}", formatId);
 

@@ -1,4 +1,8 @@
-﻿# PVBridge Solar Status Syncer
+> ⚠️ 2022-10-11: I'm trying to find time to make the project more robust, but the GoodWe APIs are _really_ unstable lately. They often don't return any data for days on end.
+>
+> I'll try to release a newer approach in Q4 2022, but due to personal reasons I might not be able to. See [#23](https://github.com/CodeCasterNL/PVBridge/issues/23).
+
+# PVBridge Solar Status Syncer
 PVBridge is a tool to upload solar panel information, both in realtime and batched per day, without having to meddle with Python scripts, Task Scheduler and unreadable config files 'n such. Just a simple installer, a background service that starts automatically with your computer and a simple configuration and status UI.
 
 It is a "bridge" between photovoltaic ("PV") systems, so to say.

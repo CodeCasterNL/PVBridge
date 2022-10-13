@@ -14,13 +14,21 @@ namespace CodeCaster.PVBridge.Service.CommandLine
     {
         private readonly ILogger<WindowsServiceManager> _logger;
 
+        // Windows Service restart timers after errors.
+        private const int FirstRestartSeconds = 60;
+        private const int SecondRestartSeconds = 60;
+        private const int SuccessiveRestartSeconds = 86400;
+
         /// <summary>
         /// Event Log name.
         /// </summary>
-        private const string applicationLogName = "Application";
+        private const string ApplicationLogName = "Application";
 
         // TODO: validate setter
         private string ServiceName { get; } = "PVBridge";
+
+        const string ServiceDisplayName = "PVBridge Solar Status Syncer";
+        const string ServiceUser = @"NT AUTHORITY\Network Service";
 
         public WindowsServiceManager(ILogger<WindowsServiceManager> logger, string? serviceName = null)
         {
@@ -64,15 +72,15 @@ namespace CodeCaster.PVBridge.Service.CommandLine
             {
                 if (!EventLog.SourceExists(Program.ApplicationName))
                 {
-                    _logger.LogInformation("Creating {application} log source {source}", applicationLogName, Program.ApplicationName);
+                    _logger.LogInformation("Creating {application} log source {source}", ApplicationLogName, Program.ApplicationName);
 
-                    EventLog.CreateEventSource(Program.ApplicationName, applicationLogName);
+                    EventLog.CreateEventSource(Program.ApplicationName, ApplicationLogName);
                 }
             }
             catch (Exception e)
             {
                 // That's not a fatal error.
-                _logger.LogError(e, "Creating {application} log source {source} failed", applicationLogName, Program.ApplicationName);
+                _logger.LogError(e, "Creating {application} log source {source} failed", ApplicationLogName, Program.ApplicationName);
             }
 
 
@@ -151,19 +159,16 @@ namespace CodeCaster.PVBridge.Service.CommandLine
 
             var exitCode = await UninstallServiceAsync();
 
-            if (exitCode == 0)
+            switch (exitCode)
             {
-                return;
-            }
-            else if (exitCode == 5)
-            {
-                throw new InvalidOperationException($"The service \"{ServiceName}\" could not be uninstalled. Exit code: {exitCode}. Run as administrator.");
-            }
-            else
-            {
-
+                case 0:
+                    return;
+                // Access denied.
+                case 5:
+                    throw new InvalidOperationException($"The service \"{ServiceName}\" could not be uninstalled. Exit code: {exitCode}. Run as administrator.");
                 // User canceled or process failed, report that to the installer.
-                throw new InvalidOperationException($"The service \"{ServiceName}\" could not be uninstalled. Exit code: {exitCode}.");
+                default:
+                    throw new InvalidOperationException($"The service \"{ServiceName}\" could not be uninstalled. Exit code: {exitCode}.");
             }
         }
 
@@ -194,13 +199,9 @@ namespace CodeCaster.PVBridge.Service.CommandLine
 
         private async Task<int> InstallServiceAsync(string servicePath)
         {
-
             var binPath = $"{servicePath} service run";
 
-            const string displayName = "PVBridge Solar Status Syncer";
-            const string serviceUser = @"NT AUTHORITY\Network Service";
-
-            var scArguments = $"create {ServiceName} displayName= \"{displayName}\" start= auto depend= RpcSs binPath= \"{binPath}\" obj= \"{serviceUser}\"";
+            var scArguments = $"create {ServiceName} displayName= \"{ServiceDisplayName}\" start= auto depend= RpcSs binPath= \"{binPath}\" obj= \"{ServiceUser}\"";
 
             var exitCode = await RunCreateServiceAsync(scArguments);
 
@@ -210,7 +211,9 @@ namespace CodeCaster.PVBridge.Service.CommandLine
             }
 
             // Set failure mode: retry twice after 2 minutes, then after a day. Error count resets in a day.
-            scArguments = $"failure {ServiceName} reset= 86400 actions= restart/60000/restart/60000/restart/86400";
+            string restartActionString = $"restart/{FirstRestartSeconds * 1000}/restart/{SecondRestartSeconds * 1000}/restart/{SuccessiveRestartSeconds * 1000}";
+            
+            scArguments = $"failure {ServiceName} reset= 86400 actions= {restartActionString}";
 
             return await RunCreateServiceAsync(scArguments);
         }

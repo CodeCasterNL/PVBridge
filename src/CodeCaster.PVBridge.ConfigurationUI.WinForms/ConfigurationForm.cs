@@ -77,7 +77,7 @@ namespace CodeCaster.PVBridge.ConfigurationUI.WinForms
         {
             if (OurVersion != null)
             {
-                this.Text = $"PVBridve v{OurVersion} - Configuration";
+                this.Text = $"PVBridge v{OurVersion} - Configuration";
             }
 
             UpdateServiceStatus();
@@ -101,13 +101,8 @@ namespace CodeCaster.PVBridge.ConfigurationUI.WinForms
             var releaseClient = new GitHubReleaseClient(new HttpClient());
 
             var latestRelease = await releaseClient.GetLatestAsync();
-
-            if (latestRelease == null)
-            {
-                return;
-            }
-
-            var versionString = latestRelease.TagName;
+            
+            var versionString = latestRelease?.TagName;
 
             if (string.IsNullOrWhiteSpace(versionString) || !Version.TryParse(versionString[1..], out var version))
             {

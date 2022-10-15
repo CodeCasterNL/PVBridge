@@ -97,11 +97,13 @@ namespace CodeCaster.GoodWe.Json
     {
         public ChartDataRequestTarget() { }
 
-        public ChartDataRequestTarget(string targetKey)
+        public ChartDataRequestTarget(int targetIndex, string targetKey)
         {
+            target_index = targetIndex;
             target_key = targetKey;
         }
         
+        public int target_index { get; set; }
         public string target_key { get; set; }
     }
 }

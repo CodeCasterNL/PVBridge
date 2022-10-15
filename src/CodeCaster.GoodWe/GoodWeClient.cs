@@ -100,7 +100,7 @@ namespace CodeCaster.GoodWe
                     new Pws_Historys
                     {
                         id = plantId,
-                        status = -1,
+                        status = 1,
                         inverters = new []
                         {
                             new Pws_Historys_Inverter
@@ -115,16 +115,16 @@ namespace CodeCaster.GoodWe
                     // TODO: query QueryTargetByEquipmentType whether this device supports these?
 
                     // Daily Generation(kWh)
-                    new ChartDataRequestTarget("EDay"),
+                    new ChartDataRequestTarget(21, "EDay"),
 
                     // Power(W)
-                    new ChartDataRequestTarget("Pac"),
+                    new ChartDataRequestTarget(18, "Pac"),
 
                     // Temperature(℃)
-                    new ChartDataRequestTarget("Tempperature"),
+                    new ChartDataRequestTarget(20, "Tempperature"),
 
                     // Ua(V)    
-                    new ChartDataRequestTarget("Vac1"),
+                    new ChartDataRequestTarget(9, "Vac1"),
                 }
             };
 

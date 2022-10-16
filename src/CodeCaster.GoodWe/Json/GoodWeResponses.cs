@@ -9,7 +9,7 @@ using System.Text.Json.Serialization;
 
 namespace CodeCaster.GoodWe.Json
 {
-    internal class ResponseBase<TData>
+    public class ResponseBase<TData>
     {
         public bool? HasError { get; set; }
         [JsonConverter(typeof(CodeConverter))]
@@ -19,7 +19,7 @@ namespace CodeCaster.GoodWe.Json
         public Components Components { get; set; }
     }
 
-    internal class Components
+    public class Components
     {
         public object Para { get; set; }
         public int? LangVer { get; set; }

@@ -38,7 +38,7 @@ namespace CodeCaster.PVBridge.GoodWe
 
             Logger.LogDebug("Getting GoodWe current status for system {plantId}", plantId);
 
-            var snapshot = await apiClient.GetMonitorDetailRaw(plantId, cancellationToken);
+            var snapshot = await apiClient.GetCurrentStatus(plantId, cancellationToken);
 
             var mapped = Mapper.Map(Logger, snapshot.Data);
 
@@ -55,7 +55,7 @@ namespace CodeCaster.PVBridge.GoodWe
 
             Logger.LogDebug("Getting GoodWe summaries from {since} until {until} for system {plantId}", since, until, plantId);
 
-            var outputs = await apiClient.GetBatchAsync(plantId, since, until, cancellationToken);
+            var outputs = await apiClient.GetSummariesAsync(plantId, since, until, cancellationToken);
 
             var mapped = Mapper.Map(outputs.Data);
 
@@ -89,7 +89,7 @@ namespace CodeCaster.PVBridge.GoodWe
             var inverterSerialNumber = GetConfigOrThrow(goodWeConfig.InverterSerialNumber, nameof(goodWeConfig.InverterSerialNumber));
 
             var apiClient = GetApiClient(goodWeConfig);
-            var snapshots = await apiClient.GetHistoryDataAsync(plantId, inverterSerialNumber, since, until, cancellationToken);
+            var snapshots = await apiClient.GetDayDetailsAsync(plantId, inverterSerialNumber, since, until, cancellationToken);
             var mapped = Mapper.Map(Logger, snapshots.Data);
 
             return HandleResponse(snapshots, mapped);

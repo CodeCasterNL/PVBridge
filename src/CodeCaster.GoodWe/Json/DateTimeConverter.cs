@@ -9,13 +9,13 @@ namespace CodeCaster.GoodWe.Json
     public class NullableDateTimeConverter : JsonConverter<DateTime?>
     {
         // The API seems to accept this format despite user settings.
-        private const string defaultWriteFormat = "MM'/'dd'/'yyyy";
-        
-        private readonly string _format;
+        private const string DefaultWriteFormat = "MM'/'dd'/'yyyy";
 
-        public NullableDateTimeConverter(string format)
+        private readonly string[] _formats;
+
+        public NullableDateTimeConverter(params string[] formats)
         {
-            _format = format;
+            _formats = formats;
         }
 
         public override DateTime? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
@@ -24,25 +24,25 @@ namespace CodeCaster.GoodWe.Json
 
             return string.IsNullOrWhiteSpace(dateString)
                 ? null
-                : DateTime.ParseExact(dateString, _format, CultureInfo.InvariantCulture, DateTimeStyles.None);
+                : DateTime.ParseExact(dateString, _formats, CultureInfo.InvariantCulture, DateTimeStyles.None);
         }
 
         public override void Write(Utf8JsonWriter writer, DateTime? value, JsonSerializerOptions options)
         {
-            writer.WriteStringValue(value?.ToUniversalTime().ToString(defaultWriteFormat));
+            writer.WriteStringValue(value?.ToUniversalTime().ToString(DefaultWriteFormat));
         }
     }
 
     public class DateTimeConverter : JsonConverter<DateTime>
     {
         // The API seems to accept this format despite user settings.
-        private const string defaultWriteFormat = "MM'/'dd'/'yyyy";
+        private const string DefaultWriteFormat = "MM'/'dd'/'yyyy";
 
-        private readonly string _format;
+        private readonly string[] _formats;
 
-        public DateTimeConverter(string format)
+        public DateTimeConverter(params string[] formats)
         {
-            _format = format;
+            _formats = formats;
         }
 
         public override DateTime Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
@@ -51,12 +51,12 @@ namespace CodeCaster.GoodWe.Json
 
             return string.IsNullOrWhiteSpace(dateString)
                 ? throw new ArgumentNullException(null, "Unexpected empty token")
-                : DateTime.ParseExact(dateString, _format, CultureInfo.InvariantCulture, DateTimeStyles.None);
+                : DateTime.ParseExact(dateString, _formats, CultureInfo.InvariantCulture, DateTimeStyles.None);
         }
 
         public override void Write(Utf8JsonWriter writer, DateTime value, JsonSerializerOptions options)
         {
-            writer.WriteStringValue(value.ToUniversalTime().ToString(defaultWriteFormat));
+            writer.WriteStringValue(value.ToUniversalTime().ToString(DefaultWriteFormat));
         }
     }
 }

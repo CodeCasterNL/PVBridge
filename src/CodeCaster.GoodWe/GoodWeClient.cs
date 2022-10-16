@@ -55,7 +55,7 @@ namespace CodeCaster.GoodWe
             _client = CreateClient();
         }
 
-        public async Task<GoodWeApiResponse<ReportData>> GetBatchAsync(string plantId, DateTime since, DateTime? until, CancellationToken cancellationToken)
+        public async Task<GoodWeApiResponse<ReportData>> GetSummariesAsync(string plantId, DateTime since, DateTime? until, CancellationToken cancellationToken)
         {
             string endpoint = _apiRoot + GetStatisticsDataEndpoint;
 
@@ -77,16 +77,19 @@ namespace CodeCaster.GoodWe
 
             _logger.LogDebug("Getting statistics data with parameters {request}", JsonSerializer.SerializeToDocument(request).RootElement.ToString());
 
-            var response = await TryRequest<ReportData>(() => _client.PostAsJsonAsync(endpoint, request, _serializerOptions, cancellationToken), cancellationToken);
+            var log = $"GoodWe-Summaries_{since:yyyy-MM-d}_{until:yyyy-MM-d}";
+
+            var response = await TryRequest<ReportData>(log, () => _client.PostAsJsonAsync(endpoint, request, _serializerOptions, cancellationToken), cancellationToken);
 
             // TODO: error handling
             return new GoodWeApiResponse<ReportData>(response);
         }
 
-        public async Task<GoodWeApiResponse<ChartData>> GetHistoryDataAsync(string plantId, string inverterSerialNumber, DateTime since, DateTime? until, CancellationToken cancellationToken)
+        public async Task<GoodWeApiResponse<ChartData>> GetDayDetailsAsync(string plantId, string inverterSerialNumber, DateTime since, DateTime? until, CancellationToken cancellationToken)
         {
             string endpoint = _apiRoot + GetHistoryDataChartEndpoint;
 
+            // TODO: truncate for partial day requests
             until ??= since.AddDays(1);
 
             var request = new ChartDataRequest
@@ -128,19 +131,21 @@ namespace CodeCaster.GoodWe
                 }
             };
 
-            var response = await TryRequest<ChartData>(() => _client.PostAsJsonAsync(endpoint, request, cancellationToken), cancellationToken);
+            var log = $"GoodWe-DayDetails-{since:yyyy-MM-dd_HH.mm.ss}";
+
+            var response = await TryRequest<ChartData>(log, () => _client.PostAsJsonAsync(endpoint, request, cancellationToken), cancellationToken);
 
             // TODO: error handling
             return new GoodWeApiResponse<ChartData>(response);
         }
 
-        public async Task<GoodWeApiResponse<PowerStationMonitorData>> GetMonitorDetailRaw(string plantId, CancellationToken cancellationToken)
+        public async Task<GoodWeApiResponse<PowerStationMonitorData>> GetCurrentStatus(string plantId, CancellationToken cancellationToken)
         {
             string endpoint = _apiRoot + GetMonitorDetailEndpoint;
 
             var request = new PowerStationMonitorRequest(plantId);
 
-            var response = await TryRequest<PowerStationMonitorData>(() => _client.PostAsJsonAsync(endpoint, request, cancellationToken), cancellationToken);
+            var response = await TryRequest<PowerStationMonitorData>("GoodWe-CurrentStatus", () => _client.PostAsJsonAsync(endpoint, request, cancellationToken), cancellationToken);
 
             // TODO: error handling
             return new GoodWeApiResponse<PowerStationMonitorData>(response);
@@ -152,14 +157,14 @@ namespace CodeCaster.GoodWe
 
             var request = new PowerStationListRequest(pageIndex: 1);
 
-            var response = await TryRequest<PlantData>(() => _client.PostAsJsonAsync(endpoint, request, cancellationToken), cancellationToken);
+            var response = await TryRequest<PlantData>("GoodWe-PlantList", () => _client.PostAsJsonAsync(endpoint, request, cancellationToken), cancellationToken);
 
             // TODO: error handling
             return new GoodWeApiResponse<PlantData>(response);
         }
 
         [DebuggerStepThrough]
-        private async Task<TResponse?> TryRequest<TResponse>(Func<Task<HttpResponseMessage>> call, CancellationToken cancellationToken)
+        private async Task<TResponse?> TryRequest<TResponse>(string logFilePrefix, Func<Task<HttpResponseMessage>> call, CancellationToken cancellationToken)
             where TResponse : class
         {
             async Task<ResponseBase<TResponse?>?> GetResponse()
@@ -168,13 +173,36 @@ namespace CodeCaster.GoodWe
                 {
                     var response = await call();
 
-                    var responseString = await response.Content.ReadAsStringAsync(cancellationToken: cancellationToken);
+                    var responseString = await response.Content.ReadAsStringAsync(cancellationToken);
 
-                    await WriteJson(typeof(TResponse).Name, responseString);
+                    ResponseBase<TResponse?>? localResponse;
 
-                    var localResponseObject = JsonSerializer.Deserialize<ResponseBase<TResponse?>>(responseString, _serializerOptions);
+                    try
+                    {
+                        localResponse = JsonSerializer.Deserialize<ResponseBase<TResponse?>>(responseString, _serializerOptions);
+                    }
+                    catch (JsonException jsonException)
+                    {
+                        _logger.LogError(jsonException, "TryRequest<{type}>() failed to parse JSON", typeof(TResponse).Name);
+                        
+                        localResponse = null;
+                    }
+                    catch (Exception exception)
+                    {
+#if DEBUG
+                        Debugger.Break();
+#endif
+                        _logger.LogError(exception, "TryRequest<{type}>() unhandled exception", typeof(TResponse).Name);
 
-                    return localResponseObject;
+                        localResponse = null;
+                    }
+
+                    if (localResponse is null or { Code: not "100001" and not "100002" })
+                    {
+                        await WriteJson(logFilePrefix, responseString);
+                    }
+
+                    return localResponse;
                 }
                 catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
                 {
@@ -182,16 +210,6 @@ namespace CodeCaster.GoodWe
                     _logger.LogDebug("Cancellation requested, cancelling request");
 
                     throw;
-                }
-                catch (Exception ex)
-                {
-#if DEBUG
-                    Debugger.Break();
-#endif
-
-                    _logger.LogError(ex, "TryRequest() failed: ");
-
-                    return default;
                 }
             }
 
@@ -218,6 +236,7 @@ namespace CodeCaster.GoodWe
                     return default;
                 }
 
+                // TODO: don't re-read on successive calls
                 await ReadUserDateFormatAsync();
 
                 // Try again after logging in, letting it fail if that fails.
@@ -226,9 +245,7 @@ namespace CodeCaster.GoodWe
 
             if (responseObject?.Code != "0")
             {
-                var jsonString = responseObject != null ? JsonSerializer.Serialize(responseObject) : "null";
-
-                _logger.LogWarning("Unexpected response: {jsonString}", jsonString);
+                _logger.LogWarning("Unexpected JSON response, see debug log above or enable that in config");
 
                 return default;
             }
@@ -306,11 +323,11 @@ namespace CodeCaster.GoodWe
 
             var formatId = responseObject.Data.Selected.date_text ?? throw new ArgumentException("User has no configured date_text");
 
-            _logger.LogDebug("Translating date format {selectedDateFormat}", formatId);
+            _logger.LogDebug("Translating date format '{selectedDateFormat}'", formatId);
 
             if (!_dateFormats.TryGetValue(formatId, out var format))
             {
-                throw new ArgumentException("Could not translate date format " + formatId);
+                throw new ArgumentException($"Could not translate date format '{formatId}'");
             }
 
             _serializerOptions = new JsonSerializerOptions
@@ -357,14 +374,14 @@ namespace CodeCaster.GoodWe
             return client;
         }
 
-        private Task WriteJson(string filePrefix, string response)
+        private Task WriteJson(string logFilePrefix, string response)
         {
             if (string.IsNullOrWhiteSpace(_jsonDataDirectory))
             {
                 return Task.CompletedTask;
             }
 
-            var jsonFileName = Path.Combine(_jsonDataDirectory, $"{filePrefix}-{DateTime.Now:yyyy-MM-dd_HH_mm_ss}.json");
+            var jsonFileName = Path.Combine(_jsonDataDirectory, $"{logFilePrefix}-{DateTime.Now:yyyy-MM-dd_HH.mm.ss}.json");
 
             return File.WriteAllTextAsync(jsonFileName, response);
         }

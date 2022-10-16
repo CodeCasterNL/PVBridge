@@ -60,6 +60,7 @@ namespace CodeCaster.PVBridge
                     return summariesResponse;
                 }
 
+                // TODO: validate output. Ignore days outside our requested range.
                 foreach (var daySummary in summariesResponse.Response.OrderBy(d => d.Day))
                 {
                     Logger.LogDebug("Retrieved {provider} summary: {summary}", configuration.NameOrType, daySummary);

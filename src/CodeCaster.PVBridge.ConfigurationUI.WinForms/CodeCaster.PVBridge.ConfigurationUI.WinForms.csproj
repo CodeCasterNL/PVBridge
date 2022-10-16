@@ -16,7 +16,7 @@
 	</PropertyGroup>
 
 	<ItemGroup>
-		<PackageReference Include="Grpc.Net.Client" Version="2.48.0" />
+		<PackageReference Include="Grpc.Net.Client" Version="2.49.0" />
 		<PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="6.0.0" />
 		<PackageReference Include="System.ServiceProcess.ServiceController" Version="6.0.0" />
 	</ItemGroup>

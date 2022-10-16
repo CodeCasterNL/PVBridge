@@ -1,14 +1,14 @@
 ﻿using System;
 using System.Linq;
 using CodeCaster.PVBridge.Utils;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
+using NUnit.Framework;
 
 namespace CodeCaster.PVBridge.Logic.Test
 {
-    [TestClass]
+    [TestFixture]
     public class DateTimeExtensionsTests
     {
-        [TestMethod]
+        [Test]
         public void GetDaysUntil_Gets_One_Day_Starting_From_Time()
         {
             // Arrange
@@ -22,7 +22,7 @@ namespace CodeCaster.PVBridge.Logic.Test
             Assert.AreEqual(d, days[0]);
         }
 
-        [TestMethod]
+        [Test]
         public void GetDaysUntil_Gets_Fourteen_Days()
         {
             // Arrange

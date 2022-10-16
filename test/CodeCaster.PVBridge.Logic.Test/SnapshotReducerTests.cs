@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using CodeCaster.PVBridge.Output;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
+using NUnit.Framework;
 
 // ReSharper disable once CollectionNeverUpdated.Local
 namespace CodeCaster.PVBridge.Logic.Test
@@ -11,10 +11,10 @@ namespace CodeCaster.PVBridge.Logic.Test
     ///
     /// TODO: assume that each comment or log statement in application code was reached once, then add test for proof.
     /// </summary>
-    [TestClass]
+    [TestFixture]
     public class SnapshotReducerTests
     {
-        [TestMethod]
+        [Test]
         public void EmptyInput_Gives_EmptyOutput()
         {
             // Arrange

@@ -5,13 +5,13 @@ namespace CodeCaster.PVBridge.Configuration.Protection;
 
 #if DEBUG
 /// <summary>
-/// Reversed strings in config, when prefixed with "s1_".
+/// Plaintext strings in config.
 /// 
 /// Development only.
 /// </summary>
-public class StringReverseProtector : IDataProtector
+public class UnprotectedProtector : IDataProtector
 {
-    public const string Prefix = "s1";
+    public const string Prefix = "s2_";
 
     public Task InitializeAsync(bool forWriting)
     {
@@ -25,7 +25,7 @@ public class StringReverseProtector : IDataProtector
             return null;
         }
 
-        return Prefix + new string(plainValue?.Reverse().ToArray());
+        return Prefix + plainValue;
     }
 
     public string? Unprotect(string? protectedValue)
@@ -35,7 +35,7 @@ public class StringReverseProtector : IDataProtector
             return null;
         }
 
-        return new string(protectedValue?.Reverse().ToArray());
+        return protectedValue;
     }
 }
 #endif

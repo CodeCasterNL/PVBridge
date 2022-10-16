@@ -48,7 +48,11 @@ namespace CodeCaster.PVBridge.GoodWe
         
         private async Task<T?> DeserializeFileAsync<T>(DataProviderConfiguration configuration, string key, CancellationToken cancellationToken)
         {
-            var path = configuration.Options[key];
+            if (!configuration.Options.TryGetValue(key, out var path))
+            {
+                throw new ArgumentException($"Could not find option '{key}' configuration under '{Type}'", nameof(key));
+            }
+
             Logger.LogDebug("About to deserialize key '{key}' file '{path}' into a '{type}'", key, path, typeof(T).Name);
 
             if (string.IsNullOrWhiteSpace(path))

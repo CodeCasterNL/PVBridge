@@ -13,11 +13,11 @@ namespace CodeCaster.PVBridge.Configuration.Protection
     {
         private static IDataProtector GetBestProtector()
         {
-//#if DEBUG
-//            return DataProtectors["s1"];
-//#endif
+            //#if DEBUG
+            //            return DataProtectors[StringReverseProtector.Prefix];
+            //#endif
 
-            return DataProtectors["a1"];
+            return DataProtectors[AesProtector.Prefix];
         }
 
         private static readonly Dictionary<string, IDataProtector> DataProtectors;
@@ -26,11 +26,13 @@ namespace CodeCaster.PVBridge.Configuration.Protection
         {
             DataProtectors = new Dictionary<string, IDataProtector>()
             {
-                #if DEBUG
-                { "s1", new StringReverseProtector() },
-                #endif
+                { AesProtector.Prefix, new AesProtector() },
+                
+#if DEBUG
+                { StringReverseProtector.Prefix, new StringReverseProtector() },
+                { UnprotectedProtector.Prefix, new UnprotectedProtector() },
+#endif
 
-                { "a1", new AesProtector() },
             };
         }
 
@@ -66,15 +68,12 @@ namespace CodeCaster.PVBridge.Configuration.Protection
             var algorithm = protectedValue[..3];
             var remainder = protectedValue[3..];
 
-            switch (algorithm)
+            if (!DataProtectors.TryGetValue(algorithm, out var dataProtector))
             {
-                case "a1_":
-                    return (DataProtectors["a1"], remainder);
-                case "s1_":
-                    return (DataProtectors["s1"], remainder);
-                default:
-                    throw new ArgumentException($"Invalid algorithm '{algorithm}'");
+                throw new ArgumentException($"Invalid algorithm '{algorithm}'");
             }
+            
+            return (dataProtector, remainder);
         }
 
         private static async Task ProtectAsync(DataProviderConfiguration provider)
@@ -94,7 +93,7 @@ namespace CodeCaster.PVBridge.Configuration.Protection
             {
                 provider.Options[key] = Protect(value);
             }
-        
+
             provider.IsProtected = true;
         }
 

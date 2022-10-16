@@ -14,6 +14,8 @@ namespace CodeCaster.PVBridge.Configuration.Protection;
 /// </summary>
 public class AesProtector : IDataProtector
 {
+    public const string Prefix = "a1_";
+    
     private KeyConfiguration? _keyConfig;
 
     // ReSharper disable once InconsistentNaming
@@ -123,7 +125,7 @@ public class AesProtector : IDataProtector
             return null;
         }
 
-        return "a1_" + Convert.ToBase64String(EncryptStringToBytes_Aes(plainValue, _keyConfig.Key, _keyConfig.IV));
+        return Prefix + Convert.ToBase64String(EncryptStringToBytes_Aes(plainValue, _keyConfig.Key, _keyConfig.IV));
     }
 
     public string? Unprotect(string? protectedValue)

@@ -22,7 +22,7 @@ namespace CodeCaster.PVBridge
         /// <summary>
         /// Write a single snapshot to the output.
         /// </summary>
-        Task<ApiResponse> WriteStatusAsync(DataProviderConfiguration outputConfig, Snapshot snapshot, CancellationToken cancellationToken);
+        Task<ApiResponse<Snapshot>> WriteStatusAsync(DataProviderConfiguration outputConfig, Snapshot snapshot, CancellationToken cancellationToken);
 
         /// <summary>
         /// Write a batch of snapshots (i.e. details for each n seconds/minutes) to the output.

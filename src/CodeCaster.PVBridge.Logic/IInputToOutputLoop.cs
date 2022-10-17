@@ -7,7 +7,7 @@ namespace CodeCaster.PVBridge.Logic
     public interface IInputToOutputLoop
     {
         /// <summary>
-        /// Called once per input and output combination, as long as the service runs.
+        /// Called once per input-to-output(s) combination, as long as the service runs.
         /// </summary>
         /// <param name="stoppingToken"></param>
         Task RunAsync(CancellationToken stoppingToken);

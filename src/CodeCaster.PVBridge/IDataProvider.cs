@@ -22,6 +22,6 @@ namespace CodeCaster.PVBridge
         ///
         /// Can be called for 31 days at most.
         /// </summary>
-        Task<ApiResponse<IReadOnlyCollection<DaySummary>>> GetSummariesAsync(DataProviderConfiguration configuration, DateTime since, DateTime? until = null, CancellationToken cancellationToken = default);
+        Task<ApiResponse<IReadOnlyCollection<DaySummary>>> GetSummariesAsync(DataProviderConfiguration configuration, DateTime since, DateTime until, CancellationToken cancellationToken = default);
     }
 }

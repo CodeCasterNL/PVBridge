@@ -14,10 +14,10 @@ namespace CodeCaster.PVBridge.CsvWriter
     {
         public string Type => "Csv";
 
-        public Task<ApiResponse> WriteStatusAsync(DataProviderConfiguration outputConfig, Snapshot snapshot, CancellationToken _)
+        public Task<ApiResponse<Snapshot>> WriteStatusAsync(DataProviderConfiguration outputConfig, Snapshot snapshot, CancellationToken _)
         {
-            // TODO
-            return Task.FromResult(ApiResponse.Succeeded);
+            // TODO: write
+            return Task.FromResult(new ApiResponse<Snapshot>(snapshot));
         }
 
         public async Task<ApiResponse> WriteStatusesAsync(DataProviderConfiguration outputConfig, IReadOnlyCollection<Snapshot> snapshots, CancellationToken cancellationToken)
@@ -65,7 +65,7 @@ namespace CodeCaster.PVBridge.CsvWriter
             return true;
         }
 
-        public Task<ApiResponse<IReadOnlyCollection<DaySummary>>> GetSummariesAsync(DataProviderConfiguration outputConfig, System.DateTime since, System.DateTime? until = null, CancellationToken cancellationToken = default)
+        public Task<ApiResponse<IReadOnlyCollection<DaySummary>>> GetSummariesAsync(DataProviderConfiguration outputConfig, System.DateTime since, System.DateTime until, CancellationToken cancellationToken = default)
         {
             // TODO: read the files that we have, get last record for each day, cache
             return Task.FromResult(new ApiResponse<IReadOnlyCollection<DaySummary>>(new List<DaySummary>()));

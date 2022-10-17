@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using CodeCaster.PVBridge.Configuration;
@@ -25,14 +26,13 @@ namespace CodeCaster.PVBridge
         /// <summary>
         /// Send a snapshot to the output.
         /// </summary>
-        Task<ApiResponse> WriteSnapshotAsync(string inputNameOrType, DataProviderConfiguration outputConfiguration, Snapshot currentStatus, CancellationToken cancellationToken);
+        Task<ApiResponse<Snapshot>> WriteSnapshotAsync(string inputNameOrType, DataProviderConfiguration outputConfiguration, Snapshot currentStatus, CancellationToken cancellationToken);
 
         /// <summary>
         /// Sync a range of statuses, returning those who were sent and successfully received.
         /// </summary>
         /// <param name="force">When true, attempts to sync the day anyway even when it's too old</param>
         Task<ApiResponse<IReadOnlyCollection<Snapshot>>> SyncPeriodDetailsAsync(DataProviderConfiguration inputConfig, DataProviderConfiguration outputConfig, DateTime day, bool force, CancellationToken cancellationToken);
-
         /// <summary>
         /// Send a day summary to the output.
         /// </summary>
@@ -49,8 +49,8 @@ namespace CodeCaster.PVBridge
         bool CanWriteSummary(DataProviderConfiguration outputConfig, DateTime day);
 
         /// <summary>
-        /// Synchronizes a period of time (can be minutes to days) from input to output. 
+        /// Asynchronously synchronizes a period of time (can be minutes to days) from input to output. 
         /// </summary>
-        Task<List<ApiResponse<DaySummary>>> SyncPeriodAsync(DataProviderConfiguration inputConfig, DataProviderConfiguration outputConfig, DateTime since, DateTime until, IReadOnlyCollection<DaySummary>? inputSummaries, IReadOnlyCollection<DaySummary>? outputSummaries, CancellationToken stoppingToken);
+        IAsyncEnumerable<(DateOnly day, ApiResponse<DaySummary>)> SyncPeriodAsync(DataProviderConfiguration inputConfig, DataProviderConfiguration outputConfig, DateTime since, DateTime until, IReadOnlyCollection<DaySummary>? inputSummaries, IReadOnlyCollection<DaySummary>? outputSummaries, CancellationToken stoppingToken);
     }
 }

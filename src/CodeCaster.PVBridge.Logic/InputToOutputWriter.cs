@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using CodeCaster.PVBridge.Configuration;
@@ -12,6 +13,10 @@ namespace CodeCaster.PVBridge.Logic
 {
     /// <summary>
     /// This is the core business logic that gets DI'd once per app run.
+    ///
+    /// It's the bridge between the input and the output(s).
+    ///
+    /// Knows about provider types (<see cref="IInputProvider"/>, <see cref="IOutputWriter"/>, <see cref="CachingSummaryProvider"/>) and gets called with input configurations to issue requests to those providers and writers.
     /// </summary>
     public class InputToOutputWriter : IInputToOutputWriter
     {
@@ -37,7 +42,9 @@ namespace CodeCaster.PVBridge.Logic
         {
             _logger.LogDebug("Getting current status from {input}", input.NameOrType);
 
-            var snapshotResponse = await GetProviderByType<IInputProvider>(input.Type).GetCurrentStatusAsync(input, cancellationToken);
+            var provider = GetProviderByType<IInputProvider>(input.Type);
+
+            var snapshotResponse = await provider.GetCurrentStatusAsync(input, cancellationToken);
 
             await _messageBroker.SnapshotReceivedAsync(snapshotResponse);
 
@@ -55,9 +62,8 @@ namespace CodeCaster.PVBridge.Logic
         {
             _logger.LogDebug("Getting {input} summaries from {since} until {until}", providerConfig.NameOrType, since, until);
 
-            var reader = GetProviderByType<IDataProvider>(providerConfig.Type);
-
-            var summaries = await reader.GetSummariesAsync(providerConfig, since, until, cancellationToken);
+            var summaries = await GetProviderByType<IDataProvider>(providerConfig.Type)
+                .GetSummariesAsync(providerConfig, since, until, cancellationToken);
 
             if (!summaries.IsSuccessful)
             {
@@ -67,13 +73,14 @@ namespace CodeCaster.PVBridge.Logic
             return summaries;
         }
 
-        public async Task<ApiResponse> WriteSnapshotAsync(string inputNameOrType, DataProviderConfiguration outputConfig, Snapshot currentStatus, CancellationToken cancellationToken)
+        public async Task<ApiResponse<Snapshot>> WriteSnapshotAsync(string inputNameOrType, DataProviderConfiguration outputConfig, Snapshot currentStatus, CancellationToken cancellationToken)
         {
             _logger.LogInformation("Syncing status '{currentStatus}' from {input} to {output}", currentStatus, inputNameOrType, outputConfig.NameOrType);
 
             var outputType = outputConfig.Type;
 
-            var outputResponse = await GetProviderByType<IOutputWriter>(outputType).WriteStatusAsync(outputConfig, currentStatus, cancellationToken);
+            var outputResponse = await GetProviderByType<IOutputWriter>(outputType)
+                .WriteStatusAsync(outputConfig, currentStatus, cancellationToken);
 
             if (outputResponse.IsSuccessful)
             {
@@ -87,44 +94,47 @@ namespace CodeCaster.PVBridge.Logic
             return outputResponse;
         }
 
-        public async Task<List<ApiResponse<DaySummary>>> SyncPeriodAsync(DataProviderConfiguration inputConfig, DataProviderConfiguration outputConfig, DateTime since, DateTime until, IReadOnlyCollection<DaySummary>? inputSummaries, IReadOnlyCollection<DaySummary>? outputSummaries, CancellationToken stoppingToken)
+        public async IAsyncEnumerable<(DateOnly, ApiResponse<DaySummary>)> SyncPeriodAsync(DataProviderConfiguration inputConfig, DataProviderConfiguration outputConfig, DateTime since, DateTime until, IReadOnlyCollection<DaySummary>? inputSummaries, IReadOnlyCollection<DaySummary>? outputSummaries, [EnumeratorCancellation]CancellationToken stoppingToken)
         {
-            var apiResponses = new List<ApiResponse<DaySummary>>();
-
             var days = since.GetDaysUntil(until).ToList();
 
             _logger.LogDebug("Syncing backlog from {since} to {until} ({days})", since, until, days.Count.SIfPlural("day"));
 
+            // Flagged when the final response is an error.
+            var rateLimitHit = false;
+
             foreach (var day in days)
             {
+                // Don't allow calls after an rate limit hit.
+                if (rateLimitHit) yield break;
+
                 var dayStart = day;
 
+                // TODO: IClock
                 if (days.Count > 1 && day != days.First() && day.Date == DateTime.Today)
                 {
                     // When we shut down yesterday or earlier and continue today, start syncing today at 00:00.
                     dayStart = DateTime.Today;
                 }
 
-                // TODO: pass `until` so this works from command line (`sync 2022-07-23T08:00 2022-07-23T09:00`).
+                // TODO: when any of the days is null, let caller get latest output(s) from that day as cheaply as possible and get the total from there. See #23.
+                // TODO: pass `until` so this works from command line (`sync 2022-07-23T08:00 2022-07-23T09:00`) and for today's backlog.
                 var dayResponse = await SyncDayAsync(inputConfig, outputConfig, dayStart, inputSummaries, outputSummaries, stoppingToken);
-
-                apiResponses.Add(dayResponse);
-
-                if (!dayResponse.IsSuccessful)
+                
+                if (dayResponse.IsRateLimited)
                 {
-                    break;
+                    rateLimitHit = true;
                 }
+                
+                yield return (DateOnly.FromDateTime(day), dayResponse);
             }
 
             _logger.LogDebug("Synced backlog from {since} to {until} ({days})", since, until, days.Count.SIfPlural("day"));
-
-            return apiResponses;
         }
 
         /// <summary>
-        /// Get snapshot data for a period, usually 24 hours or today up to now.
+        /// Get snapshot data for a period, usually an entire day or today up to now.
         /// </summary>
-
         public async Task<ApiResponse<IReadOnlyCollection<Snapshot>>> SyncPeriodDetailsAsync(DataProviderConfiguration inputConfig, DataProviderConfiguration outputConfig, DateTime day, bool force, CancellationToken cancellationToken)
         {
             var writer = GetProviderByType<IOutputWriter>(outputConfig.Type);

@@ -37,6 +37,7 @@ namespace CodeCaster.PVBridge.Service
 
             // Dependency injection
             services.AddSingleton<IInputToOutputWriter, InputToOutputWriter>();
+            services.AddSingleton(IClock.Default);
 
             // Register providers with Scrutor, except the caching one. One provider per input/output type. Providers cache clients per configuration.
             services.Scan(s => s.FromApplicationDependencies()

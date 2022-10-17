@@ -9,7 +9,7 @@ namespace CodeCaster.PVBridge.Utils
         {
             var fromDay = since.Date;
             var days = (int)(until - fromDay).TotalDays + 1;
-            
+
             if (days <= 0)
             {
                 throw new ArgumentException("Since must be equal to or before until.");
@@ -28,5 +28,8 @@ namespace CodeCaster.PVBridge.Utils
             }
             while (day < days);
         }
+
+        public static DateTime Truncate(this DateTime dateTime, TimeSpan resolution)
+            => new(dateTime.Ticks - dateTime.Ticks % resolution.Ticks);
     }
 }

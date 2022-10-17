@@ -12,7 +12,7 @@ using CodeCaster.PVBridge.Configuration;
 namespace CodeCaster.PVBridge
 {
     /// <summary>
-    /// Caches day summaries per configuration.
+    /// Caches <see cref="DaySummary"/> per date for the inheriting provider.
     /// 
     /// TODO: implement cache invalidation beyond retention limit (14 or 90 days).
     /// </summary>
@@ -35,7 +35,7 @@ namespace CodeCaster.PVBridge
         /// <summary>
         /// Returns cached days for the requested period, requesting summaries for missing periods.
         /// </summary>
-        public async Task<ApiResponse<IReadOnlyCollection<DaySummary>>> GetSummariesAsync(DataProviderConfiguration configuration, DateTime since, DateTime? until = null, CancellationToken cancellationToken = default)
+        public async Task<ApiResponse<IReadOnlyCollection<DaySummary>>> GetSummariesAsync(DataProviderConfiguration configuration, DateTime since, DateTime until, CancellationToken cancellationToken = default)
         {
             if (!_summaryCache.TryGetValue(configuration.GetHashCode(), out var providerSummaryCache))
             {
@@ -76,7 +76,7 @@ namespace CodeCaster.PVBridge
 
             var daySummaries = new List<DaySummary>();
 
-            var days = since.GetDaysUntil(until ?? DateTime.Now);
+            var days = since.GetDaysUntil(until);
 
             foreach (var day in days)
             {
@@ -98,9 +98,9 @@ namespace CodeCaster.PVBridge
             return daySummaries;
         }
 
-        private (List<DaySummary> cachedSummaries, DateTime? missingStart, DateTime? missingEnd) GetMissingDays(DataProviderConfiguration configuration, DateTime since, DateTime? until, ConcurrentDictionary<DateOnly, DaySummary> providerSummaryCache)
+        private (List<DaySummary> cachedSummaries, DateTime? missingStart, DateTime? missingEnd) GetMissingDays(DataProviderConfiguration configuration, DateTime since, DateTime until, ConcurrentDictionary<DateOnly, DaySummary> providerSummaryCache)
         {
-            var days = since.GetDaysUntil(until ?? DateTime.Now);
+            var days = since.GetDaysUntil(until);
 
             var summaries = new List<DaySummary>();
 
@@ -122,19 +122,23 @@ namespace CodeCaster.PVBridge
                 }
             }
 
-            // TODO: this can overlap (1-0-1-0-1).
+            // Note: this can overlap (1-0-1-0-1). It's up to the caller to skip already synced days, or calculate more efficient ranges.
             if (missingDays.Any())
             {
                 var missingStart = missingDays.Min(d => d.Date);
                 var missingEnd = missingDays.Max(d => d.Date);
 
+                // TODO: or just return missingDays?
                 return (summaries, missingStart, missingEnd);
             }
 
-            // TODO: if today's summary is older than resolution, return last sync up till now.
+            // TODO: if today's summary is older than resolution, return last sync up till now so we don't sync from 00:00 again.
             return (summaries, null, null);
         }
 
+        /// <summary>
+        /// Implement to retrieve summaries for a given single <see cref="since"/> day, or a range from then until <see cref="until"/> (including).
+        /// </summary>
         protected abstract Task<ApiResponse<IReadOnlyCollection<DaySummary>>> GetDaySummariesAsync(DataProviderConfiguration configuration, DateTime since, DateTime? until, CancellationToken cancellationToken);
     }
 }

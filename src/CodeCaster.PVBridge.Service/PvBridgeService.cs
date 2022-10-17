@@ -23,6 +23,9 @@ namespace CodeCaster.PVBridge.Service
     /// </summary>
     public class PvBridgeService : WindowsServiceBackgroundService
     {
+        private readonly IClock _clock;
+        private readonly ILogger<PvBridgeService> _logger;
+        
         /// <summary>
         /// Locks configuration reads and writes.
         /// </summary>
@@ -34,8 +37,7 @@ namespace CodeCaster.PVBridge.Service
 
         private CancellationTokenSource? _taskStopToken;
 
-        private readonly ILogger<PvBridgeService> _logger;
-
+        
         /// <summary>
         /// One for all loops, ILogger{T}'s and log4net's implementation are thread safe.
         /// </summary>
@@ -44,14 +46,14 @@ namespace CodeCaster.PVBridge.Service
         private readonly IClientAndServiceMessageBroker _messageBroker;
 
         private readonly IInputToOutputWriter _ioWriter;
-
         private readonly IOptionsMonitor<BridgeConfiguration> _options;
 
-        // Bypass System.CommandLine, do our own parsing for this.
+        // Bypass System.CommandLine, do our own parsing for this one.
         private static bool ShouldRunIdle => Environment.GetCommandLineArgs().Any(a => a.Equals("--IDLE", StringComparison.InvariantCultureIgnoreCase));
 
         public PvBridgeService(
             ILoggerFactory loggerFactory,
+            IClock clock,
             IHostLifetime hostLifetime,
             IOptionsMonitor<BridgeConfiguration> options,
             IClientAndServiceMessageBroker messageBroker,
@@ -59,6 +61,7 @@ namespace CodeCaster.PVBridge.Service
         )
             : base(loggerFactory.CreateLogger<PvBridgeService>(), hostLifetime)
         {
+            _clock = clock;
             _options = options;
             _ioWriter = ioWriter;
             _messageBroker = messageBroker;
@@ -252,7 +255,7 @@ namespace CodeCaster.PVBridge.Service
                     // TODO: premium accounts can sync further back, see #10.
                     var syncStart = DateTime.Today.AddDays(-13);
 
-                    var loop = new InputToOutputLoop(_loopLogger, _ioWriter, input, outputs, syncStart);
+                    var loop = new InputToOutputLoop(_loopLogger, _clock, _ioWriter, input, outputs, syncStart);
 
                     _messageBroker.StatusSyncRequested += loop.StatusSyncRequested;
 

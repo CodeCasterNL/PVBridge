@@ -56,16 +56,21 @@ namespace CodeCaster.PVBridge.PVOutput
             return system == null ? null : new PVOutputSystem(apiClient.ApiClient.OwnedSystemId, system);
         }
 
-        public async Task<ApiResponse> WriteStatusAsync(DataProviderConfiguration outputConfig, Snapshot snapshot, CancellationToken cancellationToken)
+        public async Task<ApiResponse<Snapshot>> WriteStatusAsync(DataProviderConfiguration outputConfig, Snapshot snapshot, CancellationToken cancellationToken)
         {
             var apiClient = GetApiClient(outputConfig);
 
             Logger.LogTrace("Mapping snapshot: {snapshot}", snapshot);
             var status = Mapper.Map(_statusBuilder, snapshot);
 
+            // TODO: this is debugging.
+            return snapshot;
+            
             var addStatusResponse = await TryHandleAndLogRequest(() => apiClient.ApiClient.Status.AddStatusAsync(status, cancellationToken), "PVOutput-AddStatus");
 
-            return addStatusResponse;
+            return addStatusResponse.IsSuccessful 
+                ? snapshot 
+                : new ApiResponse<Snapshot>(addStatusResponse);
         }
 
         public async Task<ApiResponse<IReadOnlyCollection<DaySummary>>> WriteDaySummariesAsync(DataProviderConfiguration outputConfig, IReadOnlyCollection<DaySummary> summaries, CancellationToken cancellationToken)
@@ -248,8 +253,8 @@ namespace CodeCaster.PVBridge.PVOutput
         }
 
         [DebuggerStepThrough]
-        private async Task<ApiResponse<TResponse>> TryHandleAndLogRequest<TResponse>(Func<Task<TResponse>> request, string jsonName)
-            where TResponse : PVOutputBaseResponse
+        private async Task<ApiResponse<TResponse>> TryHandleAndLogRequest<TResponse>(Func<Task<TResponse>> request, /*bool ignoreBadRequest,*/ string jsonName)
+            where TResponse : PVOutputBaseResponse, new()
         {
             try
             {
@@ -266,6 +271,9 @@ namespace CodeCaster.PVBridge.PVOutput
 
                 if (pvEx.StatusCode == HttpStatusCode.BadRequest)
                 {
+                    // TODO: handle "no system or data found" on a summaries call, just means no data for that day
+                    // TODO: or the system actually got removed, but we've got the UI for that
+                    // TODO: RPC to the UI...
                     Logger.LogWarning(pvEx, "Bad Request");
 
                     return new ApiResponse<TResponse>(default, ApiResponseStatus.BadRequest);

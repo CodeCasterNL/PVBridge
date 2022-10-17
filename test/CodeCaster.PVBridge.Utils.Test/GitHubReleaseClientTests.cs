@@ -57,11 +57,15 @@ namespace CodeCaster.PVBridge.Utils.Test
             var release = await _classUnderTest!.GetLatestAsync();
 
             // Assert
-            Assert.NotNull(release);
-            Assert.AreEqual(_fakeRelease.TagName, release!.TagName);
-            Assert.AreEqual(_fakeRelease.PublishedAt, release.PublishedAt);
-            Assert.AreEqual(_fakeRelease.HtmlUrl, release.HtmlUrl);
-            Assert.AreEqual(_fakeRelease.Body, release.Body);
+            Assert.That(release, Is.Not.Null);
+            
+            Assert.Multiple(() =>
+            {
+                Assert.That(release!.TagName, Is.EqualTo(_fakeRelease.TagName));
+                Assert.That(release.PublishedAt, Is.EqualTo(_fakeRelease.PublishedAt));
+                Assert.That(release.HtmlUrl, Is.EqualTo(_fakeRelease.HtmlUrl));
+                Assert.That(release.Body, Is.EqualTo(_fakeRelease.Body));
+            });
         }
     }
 }

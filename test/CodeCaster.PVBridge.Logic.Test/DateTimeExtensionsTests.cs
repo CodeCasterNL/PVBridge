@@ -12,14 +12,14 @@ namespace CodeCaster.PVBridge.Logic.Test
         public void GetDaysUntil_Gets_One_Day_Starting_From_Time()
         {
             // Arrange
-            var d = new DateTime(2022, 07, 23, 09, 54, 00);
+            var d = new DateTime(2022, 07, 23, 09, 54, 00, DateTimeKind.Local);
 
             // Act
             var days = d.GetDaysUntil(d).ToList();
 
             // Assert
-            Assert.AreEqual(1, days.Count);
-            Assert.AreEqual(d, days[0]);
+            Assert.That(days, Has.Count.EqualTo(1));
+            Assert.That(days[0], Is.EqualTo(d));
         }
 
         [Test]
@@ -33,9 +33,13 @@ namespace CodeCaster.PVBridge.Logic.Test
             var days = since.GetDaysUntil(until).ToList();
 
             // Assert
-            Assert.AreEqual(14, days.Count);
-            Assert.AreEqual(since, days[0]);
-            Assert.AreEqual(until, days[13]);
+            Assert.That(days, Has.Count.EqualTo(14));
+            
+            Assert.Multiple(() =>
+            {
+                Assert.That(days[0], Is.EqualTo(since));
+                Assert.That(days[13], Is.EqualTo(until));
+            });
         }
     }
 }

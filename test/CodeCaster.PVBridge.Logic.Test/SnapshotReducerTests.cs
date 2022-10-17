@@ -24,7 +24,7 @@ namespace CodeCaster.PVBridge.Logic.Test
             var reducedSnapshots = SnapshotReducer.GetDataForResolution(snapshots, DateTime.Today, DateTime.Today.AddDays(1).AddMinutes(6), resolutionInMinutes: 42);
 
             // Assert
-            Assert.AreEqual(0, reducedSnapshots.Count);
+            Assert.That(reducedSnapshots, Is.Empty);
         }
     }
 }

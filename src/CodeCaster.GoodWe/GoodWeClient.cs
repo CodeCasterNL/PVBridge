@@ -18,10 +18,10 @@ namespace CodeCaster.GoodWe
         private const string DefaultApiRoot = "https://semsportal.com";
         private string _apiRoot = DefaultApiRoot;
 
-        private const string GetMonitorDetailEndpoint = "/api/v1/PowerStation/GetMonitorDetailByPowerstationId";
-        private const string GetStatisticsDataEndpoint = "/api/v1/Statistics/GetStatisticsData";
-        private const string GetHistoryDataChartEndpoint = "/api/v1/HistoryData/GetStationHistoryDataChart";
-        private const string GetPowerStationInfoEndpoint = "/api/v1/HistoryData/QueryPowerStationByHistory";
+        private const string GetMonitorDetailEndpoint = "/api/v3/PowerStation/GetMonitorDetailByPowerstationId";
+        private const string GetStatisticsDataEndpoint = "/api/v3/Statistics/GetStatisticsData";
+        private const string GetHistoryDataChartEndpoint = "/api/v3/HistoryData/GetStationHistoryDataChart";
+        private const string GetPowerStationInfoEndpoint = "/api/v3/HistoryData/QueryPowerStationByHistory";
 
         private const string LoginEndpoint = "/api/v1/Common/CrossLogin";
         private const string DefaultToken = @"{""version"":""v2.0.4"",""client"":""ios"",""language"":""en""}";

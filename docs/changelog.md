@@ -7,6 +7,9 @@ order: 40
 ### [v0.8.0]() (upcoming)
 Separate backlog from live sync, don't hang on unsyncable days in the past.
 
+### [v0.7.2](https://github.com/CodeCasterNL/PVBridge/releases/tag/v0.7.2) (2022-12-27)
+Updated GoodWe API format so we can sync again.
+
 ### [v0.7.1](https://github.com/CodeCasterNL/PVBridge/releases/tag/v0.7.1) (2022-10-15)
 Updated GoodWe API format so we can sync again.
 

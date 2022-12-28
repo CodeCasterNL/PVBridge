@@ -4,7 +4,7 @@
 		<AssemblyName>PVBridge</AssemblyName>
 		<SelfContained>False</SelfContained>
 		<RuntimeIdentifier>win-x64</RuntimeIdentifier>
-		<TargetFramework>net6.0-windows</TargetFramework>
+		<TargetFramework>net7.0-windows</TargetFramework>
 		<ApplicationManifest>app.manifest</ApplicationManifest>
 		<SatelliteResourceLanguages>en</SatelliteResourceLanguages>
 

@@ -16,14 +16,14 @@
 	</PropertyGroup>
 
 	<ItemGroup>
-		<PackageReference Include="Grpc.Net.Client" Version="2.49.0" />
-		<PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="6.0.0" />
-		<PackageReference Include="System.ServiceProcess.ServiceController" Version="6.0.0" />
+		<PackageReference Include="Grpc.Net.Client" Version="2.50.0" />
+		<PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="7.0.0" />
+		<PackageReference Include="System.ServiceProcess.ServiceController" Version="7.0.0" />
 	</ItemGroup>
 
 	<!-- Hax to prevent all runtimes to be copied -->
 	<ItemGroup>
-		<PackageReference Include="GrpcDotNetNamedPipes" Version="1.4.4" ExcludeAssets="runtimes" GeneratePathProperty="true" />
+		<PackageReference Include="GrpcDotNetNamedPipes" Version="2.0.0" ExcludeAssets="runtimes" GeneratePathProperty="true" />
 
 		<None Include="$(PkgGrpcDotNetNamedPipes)\runtimes\win-x64\*">
 			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
